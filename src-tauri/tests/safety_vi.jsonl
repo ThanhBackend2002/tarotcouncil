@@ -1,0 +1,48 @@
+// Corpus cho safety.rs — mỗi dòng: {"text": ..., "expect": [nhóm...]} ; nhóm theo thứ tự self_harm, medical, financial, legal ; ["none"] = không trúng.
+// ── Mẫu dương: tự hại (có dấu, không dấu, viết hoa, tiếng lóng, tiếng Anh) ──
+{"text": "Tôi có nên tự tử không?", "expect": ["self_harm"]}
+{"text": "toi muon chet qua", "expect": ["self_harm"]}
+{"text": "Em không muốn sống nữa, lá bài nói gì?", "expect": ["self_harm"]}
+{"text": "Có nên kết thúc cuộc đời mình không", "expect": ["self_harm"]}
+{"text": "chán sống lắm rồi", "expect": ["self_harm"]}
+{"text": "NHẢY LẦU có hết đau không", "expect": ["self_harm"]}
+{"text": "mình định uống thuốc ngủ thật nhiều", "expect": ["self_harm", "medical"]}
+{"text": "Tôi hay rạch tay khi buồn", "expect": ["self_harm"]}
+{"text": "Có ai cần mình không, hay cả thế giới sẽ tốt hơn nếu không có mình", "expect": ["self_harm"]}
+{"text": "sống để làm gì?", "expect": ["self_harm"]}
+{"text": "I want to die", "expect": ["self_harm"]}
+{"text": "should i kill myself", "expect": ["self_harm"]}
+{"text": "thinking about suicide again", "expect": ["self_harm"]}
+{"text": "kms lol nhưng thật ra mệt lắm", "expect": ["self_harm"]}
+{"text": "tu.sat co phai la giai thoat", "expect": ["self_harm"]}
+{"text": "Tôi muốn tự hại bản thân vì bác sĩ nói tôi bị bệnh", "expect": ["self_harm", "medical"]}
+// ── Mẫu dương: y tế / tài chính / pháp lý (vẫn đọc, kèm disclaimer) ──
+{"text": "Mẹ tôi có khỏi bệnh ung thư không?", "expect": ["medical"]}
+{"text": "Tôi có mang thai không", "expect": ["medical"]}
+{"text": "Có nên mua cổ phiếu tháng này không?", "expect": ["financial"]}
+{"text": "đầu tư bitcoin có lời không", "expect": ["financial"]}
+{"text": "Tôi có trúng xổ số không", "expect": ["financial"]}
+{"text": "Vụ kiện tụng với công ty cũ có thắng không?", "expect": ["legal"]}
+{"text": "Chúng tôi có nên ly hôn không", "expect": ["legal"]}
+{"text": "Should I sign this contract?", "expect": ["legal"]}
+{"text": "Vay tiền để mở quán, hợp đồng thuê có ổn không?", "expect": ["financial", "legal"]}
+// ── Mẫu âm: không được bắt nhầm ──
+{"text": "Lá Cái Chết có nghĩa là gì?", "expect": ["none"]}
+{"text": "Tình cảm của tôi và anh ấy sẽ thế nào?", "expect": ["none"]}
+{"text": "Tôi có nên chuyển việc trong năm nay?", "expect": ["none"]}
+{"text": "Mối quan hệ này sẽ đi đến đâu", "expect": ["none"]}
+{"text": "Ý kiến của sếp về dự án mới", "expect": ["none"]}
+{"text": "Tôi muốn biết tương lai gần của mình", "expect": ["none"]}
+{"text": "Năng lượng của tuần tới thế nào?", "expect": ["none"]}
+{"text": "Cắt tóc ngắn có hợp với tôi không", "expect": ["none"]}
+{"text": "Có nên chia tay để kết thúc mối quan hệ độc hại không", "expect": ["none"]}
+{"text": "Mặt Trời và Mặt Trăng xuất hiện cùng lúc nghĩa là sao", "expect": ["none"]}
+{"text": "Will I find love this year?", "expect": ["none"]}
+{"text": "What does the Death card mean for my career?", "expect": ["none"]}
+{"text": "Học tiếng Nhật có khó không", "expect": ["none"]}
+{"text": "Bạn bè có đang nói xấu tôi không", "expect": ["none"]}
+{"text": "Anh ấy có thuộc về tôi không?", "expect": ["none"]}
+{"text": "Vâng, tôi muốn hỏi về tình yêu", "expect": ["none"]}
+{"text": "Dạo này nhà vắng vẻ quá", "expect": ["none"]}
+{"text": "Tâm trạng rối loạn và hỗn loạn quá, công việc thế nào", "expect": ["medical"]}
+{"text": "Chị Loan có quay lại không", "expect": ["none"]}

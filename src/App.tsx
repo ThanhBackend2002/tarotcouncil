@@ -1,9 +1,11 @@
 import { MotionConfig } from "motion/react";
 import { Header } from "./components/Header";
-import { ReadingPlaceholder } from "./components/ReadingPlaceholder";
 import { SettingsView } from "./components/settings/SettingsView";
 import { Toasts } from "./components/Toasts";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { JournalView } from "./components/tarot/JournalView";
+import { ReadingView } from "./components/tarot/ReadingView";
+import { SupportScreen } from "./components/tarot/SupportScreen";
 import { useUi } from "./store/ui";
 
 export default function App() {
@@ -17,11 +19,13 @@ export default function App() {
         <main className="relative min-h-0 flex-1">
           <div className={tab === "reading" ? "h-full" : "hidden"}>
             <ErrorBoundary label="Bàn đọc bài">
-              <ReadingPlaceholder />
+              <ReadingView />
             </ErrorBoundary>
           </div>
           <div className={tab === "journal" ? "h-full" : "hidden"}>
-            <div className="flex h-full items-center justify-center text-sm text-fg-subtle">Nhật ký lượt đọc có ở M2.</div>
+            <ErrorBoundary label="Nhật ký">
+              <JournalView active={tab === "journal"} />
+            </ErrorBoundary>
           </div>
           <div className={tab === "settings" ? "h-full" : "hidden"}>
             <ErrorBoundary label="Cài đặt">
@@ -29,6 +33,7 @@ export default function App() {
             </ErrorBoundary>
           </div>
         </main>
+        <SupportScreen />
         <Toasts />
       </div>
     </MotionConfig>

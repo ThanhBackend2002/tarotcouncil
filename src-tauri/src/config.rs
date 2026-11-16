@@ -465,14 +465,13 @@ impl AppConfig {
     }
 
     /// Trước khi luận giải: cấu trúc hợp lệ + các thầy bói tham gia (và trưởng thầy) đã có provider/model.
-    #[allow(dead_code)] // M1: create_reading / interpret_reading
-    pub fn validate_ready(&self, reader_ids: &[String]) -> Result<(), String> {
+    pub fn validate_ready(&self, reader_ids: &[String], chief_id: &str) -> Result<(), String> {
         self.validate()?;
         if self.providers.is_empty() {
             return Err("Chưa có provider nào — vào Cài đặt → Provider để thêm API key".into());
         }
         let mut missing = Vec::new();
-        for id in reader_ids.iter().map(String::as_str).chain([self.tarot.chief_reader_id.as_str()]) {
+        for id in reader_ids.iter().map(String::as_str).chain([chief_id]) {
             let Some(r) = self.role(id) else {
                 missing.push(format!("'{id}' không tồn tại"));
                 continue;
@@ -587,7 +586,7 @@ pub(crate) mod tests {
         let c = AppConfig::default();
         c.validate().unwrap();
         assert!(c.providers.is_empty());
-        assert!(c.validate_ready(&c.tarot.default_readers).unwrap_err().contains("Chưa có provider"));
+        assert!(c.validate_ready(&c.tarot.default_readers, &c.tarot.chief_reader_id).unwrap_err().contains("Chưa có provider"));
         for id in [roster::CLASSIC_READER, roster::JUNG_READER, roster::PRACTICAL_READER, roster::SKEPTIC_READER, roster::CHIEF_READER] {
             assert!(c.role(id).is_some(), "thiếu persona {id}");
         }
@@ -682,9 +681,9 @@ pub(crate) mod tests {
     #[test]
     fn validate_ready_requires_model_for_readers_and_chief() {
         let mut c = with_default_provider("sk-x", "m");
-        c.validate_ready(&[roster::CLASSIC_READER.into()]).unwrap();
+        c.validate_ready(&[roster::CLASSIC_READER.into()], roster::CHIEF_READER).unwrap();
         c.roles.iter_mut().find(|r| r.id == roster::CHIEF_READER).unwrap().model.clear();
-        assert!(c.validate_ready(&[roster::CLASSIC_READER.into()]).unwrap_err().contains("chưa chọn provider/model"));
+        assert!(c.validate_ready(&[roster::CLASSIC_READER.into()], roster::CHIEF_READER).unwrap_err().contains("chưa chọn provider/model"));
     }
 
     #[test]

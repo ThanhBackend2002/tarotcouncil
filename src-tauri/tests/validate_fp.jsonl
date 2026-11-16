@@ -1,0 +1,17 @@
+// Corpus cho validate::foreign_cards — {"text", "drawn": [id đã bốc], "foreign": [id lá ngoài lượt bốc PHẢI bị dò ra]}
+// ── Có bịa lá (phải dò ra) ──
+{"text": "Lá Mặt Trời cho thấy niềm vui, kết hợp với lá Tháp báo hiệu biến động.", "drawn": ["major-19"], "foreign": []}
+{"text": "Lá Mặt Trời cho thấy niềm vui, kết hợp với lá Tòa Tháp báo hiệu biến động.", "drawn": ["major-19"], "foreign": ["major-16"]}
+{"text": "Ở vị trí này, lá Ba Kiếm nhắc về nỗi đau.", "drawn": ["cups-ace"], "foreign": ["swords-3"]}
+{"text": "The Tower appears beside your Ace of Cups.", "drawn": ["cups-ace"], "foreign": ["major-16"]}
+{"text": "Tôi thấy lá Hoàng Hậu và lá Hoàng Đế cùng xuất hiện.", "drawn": ["major-03"], "foreign": ["major-04"]}
+{"text": "Năng lượng giống lá Vua Tiền: vững vàng.", "drawn": ["swords-king"], "foreign": ["pentacles-king"]}
+// ── Không bịa (không được báo) ──
+{"text": "Mặt trời sẽ lại mọc sau cơn mưa, mọi chuyện rồi sẽ ổn.", "drawn": ["major-18"], "foreign": []}
+{"text": "Bạn cần công lý và sự công bằng trong mối quan hệ này.", "drawn": ["cups-2"], "foreign": []}
+{"text": "Sức mạnh thật sự nằm ở sự dịu dàng.", "drawn": ["major-07"], "foreign": []}
+{"text": "Lá Cái Chết ở đây nói về sự chuyển hoá, không phải điềm xấu.", "drawn": ["major-13"], "foreign": []}
+{"text": "Thế giới quanh bạn đang thay đổi, hãy đón nhận.", "drawn": ["wands-ace"], "foreign": []}
+{"text": "Ngôi sao hy vọng vẫn sáng trong bạn.", "drawn": ["cups-10"], "foreign": []}
+{"text": "Lá Hai Gậy và lá Ba Gậy nối tiếp nhau như một hành trình.", "drawn": ["wands-2", "wands-3"], "foreign": []}
+{"text": "Hiệp sĩ trong lòng bạn đang muốn lên đường.", "drawn": ["swords-knight"], "foreign": []}

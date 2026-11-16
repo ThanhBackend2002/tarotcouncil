@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoaderCircle, RotateCcw, Save } from "lucide-react";
+import { FolderOpen, LoaderCircle, RotateCcw, Save } from "lucide-react";
 import type { AppConfig, Provider } from "../../lib/contracts";
 import { ipc, isCommandError } from "../../lib/ipc";
 import { isLocalUrl, useConfig } from "../../store/config";
@@ -307,6 +307,19 @@ function GeneralTab({
             <option value="off">off (chỉ dựa vào prompt)</option>
           </select>
         </Field>
+      </div>
+      <div className="mt-4 flex items-center gap-3 border-t border-line pt-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">Log của ứng dụng</p>
+          <p className="text-xs text-fg-subtle">Ghi reading_id, attempt, thầy bói, độ trễ, token và mã lỗi provider. Không ghi câu hỏi, không ghi API key.</p>
+        </div>
+        <Button
+          size="sm"
+          icon={<FolderOpen className="size-3.5" />}
+          onClick={() => void ipc.openLogDir().catch((e: unknown) => toastError(e, "Không mở được thư mục log"))}
+        >
+          Mở thư mục log
+        </Button>
       </div>
     </Panel>
   );

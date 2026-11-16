@@ -61,12 +61,10 @@ impl Storage {
     }
 
     /// Thư mục chứa các file `<uuid>.json` của lượt đọc.
-    #[allow(dead_code)] // M1: lưu lượt đọc
     pub fn readings_dir(&self) -> PathBuf {
         self.root.join(READINGS_DIR)
     }
 
-    #[allow(dead_code)] // M1: lưu lượt đọc
     pub fn reading_path(&self, id: Uuid) -> PathBuf {
         // `id` là Uuid đã parse → không thể path traversal.
         self.readings_dir().join(format!("{id}.json"))

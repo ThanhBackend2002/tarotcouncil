@@ -1,0 +1,4 @@
+{
+  "_readme": "Chỉ thêm đường dây hỗ trợ sau khi một người đã gọi/kiểm tra trực tiếp, ghi ngày vào verified_at (YYYY-MM-DD). Mục quá 12 tháng tự ẩn. Không thêm số ước đoán.",
+  "entries": []
+}

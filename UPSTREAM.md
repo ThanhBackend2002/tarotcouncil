@@ -13,6 +13,7 @@ TarotCouncil là fork của PlanCouncil (`https://github.com/ThanhBackend2002/pl
 |---|---|
 | `src-tauri/src/llm_client.rs` | Chỉ đổi User-Agent (`TarotCouncil/<version>`). Không cắt API chưa dùng (tool calling, stream) để giữ diff nhỏ. |
 | `src-tauri/src/budget.rs` | Nguyên bản. |
+| `src-tauri/src/cost.rs` | Tính trên danh sách `CallUsage` của lượt đọc (bỏ theo vòng/scope của council). |
 | `src-tauri/src/health.rs` | Nguyên bản (role = thầy bói). |
 | `src-tauri/src/normalize.rs` | Nguyên bản. |
 | `src-tauri/src/secrets.rs` | Bỏ target web search, service keyring `com.tarotcouncil.app`, `set_secret` từ chối chế độ `file`. |

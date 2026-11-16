@@ -679,7 +679,6 @@ impl Secrets {
     }
 
     /// Target đầu tiên trong `wanted` bị thiếu key (RAM sau khởi động lại, keyring khoá…).
-    #[allow(dead_code)] // M1: chặn luận giải khi key RAM đã mất
     pub fn first_missing(&self, cfg: &AppConfig, wanted: &[Target]) -> Option<Target> {
         let list = self.target_statuses(cfg);
         wanted.iter().find(|w| list.iter().any(|s| &s.target == *w && s.missing)).cloned()

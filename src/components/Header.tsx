@@ -1,4 +1,4 @@
-import { BookOpen, NotebookPen, Settings } from "lucide-react";
+import { BookOpen, LifeBuoy, NotebookPen, Settings } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useUi, type Tab } from "../store/ui";
 import { cx } from "./ui";
@@ -10,7 +10,7 @@ const TABS: { id: Tab; label: string; icon: typeof BookOpen }[] = [
 ];
 
 export function Header() {
-  const { tab, setTab } = useUi(useShallow((s) => ({ tab: s.tab, setTab: s.setTab })));
+  const { tab, setTab, openSupport } = useUi(useShallow((s) => ({ tab: s.tab, setTab: s.setTab, openSupport: s.openSupport })));
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-6 border-b border-line bg-canvas px-4">
@@ -44,6 +44,15 @@ export function Header() {
 
       <div className="ml-auto flex items-center gap-3 text-xs text-fg-muted">
         <span className="hidden md:inline">Chỉ mang tính giải trí</span>
+        {/* Plan §5: lối vào hỗ trợ luôn hiển thị trên mọi màn hình. */}
+        <button
+          type="button"
+          onClick={() => openSupport("manual")}
+          className="inline-flex h-8 items-center gap-1.5 rounded-control px-3 text-sm text-warn hover:bg-warn-subtle"
+        >
+          <LifeBuoy className="size-4" />
+          Cần hỗ trợ?
+        </button>
       </div>
     </header>
   );

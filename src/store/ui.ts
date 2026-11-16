@@ -3,6 +3,7 @@ import { create } from "zustand";
 export type Tab = "reading" | "journal" | "settings";
 export type ThemePref = "system" | "dark" | "light";
 export type MotionPref = "system" | "on" | "off";
+export type SupportMode = "manual" | "blocked" | "crisis";
 
 interface UiStore {
   tab: Tab;
@@ -10,9 +11,11 @@ interface UiStore {
   /** Yêu cầu Cài đặt mở 1 tab cụ thể (vd. "providers" từ màn onboarding). `nonce` như planFocus. */
   settingsFocus: { tab: string; nonce: number } | null;
   openSettings: (tab?: string) => void;
-  /** Màn hỗ trợ ("Cần hỗ trợ?") — mở được từ mọi màn hình (plan §5). */
-  supportOpen: boolean;
-  setSupportOpen: (v: boolean) => void;
+  /** Màn hỗ trợ (plan §5): "manual" = tự mở qua "Cần hỗ trợ?", "blocked" = câu hỏi bị chặn,
+   *  "crisis" = mô hình báo khủng hoảng. null = đóng. */
+  support: SupportMode | null;
+  openSupport: (m: SupportMode) => void;
+  closeSupport: () => void;
 
   /** Theme người dùng chọn ("system" = theo hệ điều hành). Lưu localStorage. */
   theme: ThemePref;
@@ -70,8 +73,9 @@ export const useUi = create<UiStore>((set) => ({
   tab: "reading",
   setTab: (tab) => set({ tab }),
   settingsFocus: null,
-  supportOpen: false,
-  setSupportOpen: (supportOpen) => set({ supportOpen }),
+  support: null,
+  openSupport: (support) => set({ support }),
+  closeSupport: () => set({ support: null }),
   openSettings: (tab) => set({ tab: "settings", settingsFocus: tab ? { tab, nonce: Date.now() } : null }),
 
   theme: initialTheme,

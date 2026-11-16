@@ -41,6 +41,13 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
 
 unicode-normalization = "0.1"
+# Index tìm kiếm (rebuild được) cho Nhật ký. `bundled` = tự build SQLite, có sẵn FTS5.
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+# Tráo bài tái lập được từ seed (plan §2 draw.rs): ChaCha20 + seed 32 byte từ OS.
+rand_chacha = "0.3"
+rand_core = { version = "0.6", features = ["getrandom"] }
+getrandom = "0.2"
 
 # Keyring của hệ điều hành (secrets.rs). keyring v3 KHÔNG bật feature = mock không lưu gì
 # → bật backend thật theo từng OS. Linux/BSD: Secret Service qua zbus (thuần Rust, không cần

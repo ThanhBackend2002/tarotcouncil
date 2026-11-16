@@ -114,7 +114,10 @@ export interface CommandError {
     | "internal"
     | "secret_missing"
     | "busy"
-    | "persist_failed";
+    | "persist_failed"
+    | "privacy_required"
+    | "index_unavailable"
+    | "index";
   message: string;
   /** Chỉ có với `secret_missing`: key nào đang thiếu. */
   target?: SecretTarget;
@@ -185,6 +188,128 @@ export interface SecretCommandError {
   target?: SecretTarget;
 }
 
+// ───────────────────────────── Bộ bài & kiểu trải — mirror deck.rs / spreads.rs ─────────────────────────────
+
+export type Arcana = "major" | "minor";
+export type Element = "fire" | "water" | "air" | "earth";
+
+export interface Card {
+  id: string;
+  arcana: Arcana;
+  suit: "wands" | "cups" | "swords" | "pentacles" | null;
+  /** 0–21 Ẩn Chính; 1–14 Ẩn Phụ (Page=11 … King=14). */
+  rank: number;
+  name_vi: string;
+  name_en: string;
+  keywords_upright: string[];
+  keywords_reversed: string[];
+  meaning_upright: string;
+  meaning_reversed: string;
+  element: Element;
+  /** Khoá ảnh (vd "m00") → `src/assets/cards/{art_key}.jpg`. */
+  art_key: string;
+}
+
+export interface Deck { deck_version: number; cards: Card[] }
+
+export interface SpreadPosition {
+  index: number;
+  label_vi: string;
+  meaning_hint: string;
+  /** 0–1 trên mặt bàn. */
+  x: number;
+  y: number;
+  rotation: number;
+}
+
+export interface Spread { id: string; name_vi: string; description_vi: string; positions: SpreadPosition[] }
+
+// ───────────────────────────── Lượt đọc — mirror reading.rs / validate.rs ─────────────────────────────
+
+export interface Draw {
+  position: number;
+  position_label_vi: string;
+  /** Chỉ số CỐ ĐỊNH trong quạt (0–77). */
+  fan_index: number;
+  card_id: string;
+  name_vi: string;
+  name_en: string;
+  reversed: boolean;
+  art_key: string;
+}
+
+export type Tone = "hopeful" | "cautionary" | "neutral";
+
+export interface PositionReading { position: number; card_id: string; interpretation: string }
+
+export interface ReaderOutput { positions: PositionReading[]; overall: string; tone: Tone; crisis: boolean }
+
+export interface Synthesis {
+  summary: string;
+  agreements: string[];
+  divergences: string[];
+  advice: string[];
+  disclaimer: string;
+  crisis: boolean;
+}
+
+export interface ReaderResult { reader_id: RoleId; output: ReaderOutput | null; failed: string | null; warnings: string[] }
+
+export type SafetyCategory = "self_harm" | "medical" | "financial" | "legal";
+
+export interface TokenUsage { prompt_tokens: number; completion_tokens: number; cached_tokens: number; calls: number; estimated_calls: number }
+
+/** Bản public (đã lược seed_hex, deck_order, reversed_flags). */
+export interface Reading {
+  schema_version: number;
+  id: string;
+  created_at: string;
+  updated_at: string;
+  app_version: string;
+  deck_version: number;
+  question: string;
+  spread_id: string;
+  reader_ids: RoleId[];
+  chief_reader_id: RoleId;
+  cast: CastMember[];
+  safety_flags: SafetyCategory[];
+  shuffle_algo_version: number;
+  reversed_enabled: boolean;
+  picks: number[];
+  draws: Draw[];
+  attempt_id: number;
+  outputs: ReaderResult[];
+  synthesis: Synthesis | null;
+  usage: TokenUsage;
+  status: ReadingStatus;
+  error: string | null;
+}
+
+export interface ReadingSummary {
+  id: string;
+  created_at: string;
+  question: string;
+  spread_id: string;
+  status: ReadingStatus;
+  /** [tên lá, ngược?] */
+  cards: [string, boolean][];
+  summary: string;
+}
+
+export interface ReadingSnapshot { reading: Reading; attempt_id: number; last_seq: number; live: boolean }
+export interface CreateReadingResult { blocked?: "self_harm"; reading?: Reading }
+export interface DrawResult { draw: Draw; reading: Reading }
+export interface Verification { verified: boolean; label: string; problems: string[] }
+
+export interface SupportEntry { country: string; name: string; phone: string | null; url: string | null; hours: string | null; verified_at: string }
+export interface SupportInfo { entries: SupportEntry[]; hidden_stale: number }
+
+export interface UsageBreakdown {
+  by_reader: { agent: RoleId; prompt: number; cached: number; completion: number; calls: number; estimated: boolean; cost_usd: number | null }[];
+  totals: { prompt: number; cached: number; completion: number; estimated: boolean; cost_usd: number | null };
+  unpriced_models: string[];
+}
+
 // ───────────────────────────── Event contract `reading-event` (plan §3) ─────────────────────────────
 
 export const READING_EVENT = "reading-event";
@@ -192,10 +317,10 @@ export const READING_EVENT = "reading-event";
 export type ReadingPayload =
   | { type: "reader_started"; reader_id: RoleId }
   | { type: "reader_progress"; reader_id: RoleId; chars: number }
-  | { type: "reader_done"; reader_id: RoleId; output: unknown }
+  | { type: "reader_done"; reader_id: RoleId; output: ReaderResult }
   | { type: "reader_failed"; reader_id: RoleId; reason: string }
   | { type: "synthesis_started" }
-  | { type: "synthesis_done"; synthesis: unknown }
+  | { type: "synthesis_done"; synthesis: Synthesis }
   | { type: "support_required" }
   | { type: "usage"; tokens: number; cost_usd: number | null }
   | { type: "reading_done" }

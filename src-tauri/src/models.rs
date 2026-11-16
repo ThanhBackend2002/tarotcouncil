@@ -4,7 +4,6 @@
 use serde::{Deserialize, Serialize};
 
 /// Token tiêu thụ cộng dồn.
-#[allow(dead_code)] // M1: tổng usage của lượt đọc
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TokenUsage {
@@ -17,7 +16,6 @@ pub struct TokenUsage {
     pub estimated_calls: u32,
 }
 
-#[allow(dead_code)]
 impl TokenUsage {
     pub fn add(&mut self, prompt: u64, cached: u64, completion: u64, estimated: bool) {
         self.prompt_tokens += prompt;
@@ -27,9 +25,6 @@ impl TokenUsage {
         if estimated {
             self.estimated_calls += 1;
         }
-    }
-    pub fn total(&self) -> u64 {
-        self.prompt_tokens + self.completion_tokens
     }
 }
 
@@ -77,6 +72,6 @@ mod tests {
         let mut u = TokenUsage::default();
         u.add(10, 2, 5, false);
         u.add(1, 0, 1, true);
-        assert_eq!((u.total(), u.calls, u.estimated_calls, u.cached_tokens), (17, 2, 1, 2));
+        assert_eq!((u.prompt_tokens + u.completion_tokens, u.calls, u.estimated_calls, u.cached_tokens), (17, 2, 1, 2));
     }
 }

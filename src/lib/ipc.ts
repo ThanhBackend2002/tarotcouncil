@@ -3,6 +3,16 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type {
   AppConfig,
+  CreateReadingResult,
+  Deck,
+  DrawResult,
+  Reading,
+  ReadingSnapshot,
+  ReadingSummary,
+  Spread,
+  SupportInfo,
+  UsageBreakdown,
+  Verification,
   CommandError,
   ConnectionTestResult,
   KeyStorage,
@@ -26,6 +36,9 @@ const KINDS: ReadonlySet<CommandError["kind"]> = new Set([
   "secret_missing",
   "busy",
   "persist_failed",
+  "privacy_required",
+  "index_unavailable",
+  "index",
 ]);
 
 export function toCommandError(e: unknown): CommandError {
@@ -78,6 +91,27 @@ export const ipc = {
   /** `baseUrl`/`apiKey` cho phép thử provider đang sửa dở; bỏ trống = dùng bản đã lưu. */
   listModels: (providerId: string, baseUrl?: string, apiKey?: string | null) =>
     call<ModelList>("list_models", { providerId, baseUrl, apiKey: apiKey ?? undefined }),
+  openLogDir: () => call<string>("open_log_dir"),
+};
+
+// ── Đọc bài + Nhật ký (backend dùng `rename_all = "snake_case"` cho tham số) ──
+export const readingIpc = {
+  listSpreads: () => call<Spread[]>("list_spreads"),
+  getDeck: () => call<Deck>("get_deck"),
+  supportInfo: () => call<SupportInfo>("get_support_info"),
+  create: (question: string, spreadId: string, readerIds: RoleId[]) =>
+    call<CreateReadingResult>("create_reading", { question, spread_id: spreadId, reader_ids: readerIds }),
+  draw: (readingId: string, fanIndex: number) => call<DrawResult>("draw_card", { reading_id: readingId, fan_index: fanIndex }),
+  autoDraw: (readingId: string) => call<Reading>("auto_draw", { reading_id: readingId }),
+  reshuffle: (readingId: string) => call<Reading>("reshuffle_reading", { reading_id: readingId }),
+  interpret: (readingId: string) => call<number>("interpret_reading", { reading_id: readingId }),
+  cancel: (readingId: string) => call<boolean>("cancel_reading", { reading_id: readingId }),
+  get: (readingId: string) => call<ReadingSnapshot>("get_reading", { reading_id: readingId }),
+  list: (limit?: number) => call<ReadingSummary[]>("list_readings", { limit }),
+  search: (query: string, limit?: number) => call<ReadingSummary[]>("search_readings", { query, limit }),
+  remove: (readingId: string) => call<boolean>("delete_reading", { reading_id: readingId }),
+  verify: (readingId: string) => call<Verification>("verify_reading", { reading_id: readingId }),
+  usage: (readingId: string) => call<UsageBreakdown>("get_usage", { reading_id: readingId }),
 };
 
 // ── API key (keyring) — giữ nguyên `kind` của backend để UI phân biệt keyring_unavailable / keyring_locked ──
