@@ -123,7 +123,6 @@ export function ProvidersTab({
               <SecretControls
                 target={{ kind: "provider", id: p.id }}
                 status={findStatus(secrets.report, { kind: "provider", id: p.id })}
-                secretsFile={secrets.report?.secrets_file}
                 value={p.api_key}
                 canStore={(() => {
                   const s = saved.providers.find((x) => x.id === p.id);

@@ -290,7 +290,7 @@ pub fn build_http_client() -> reqwest::Result<reqwest::Client> {
         .connect_timeout(Duration::from_secs(15))
         .pool_idle_timeout(Duration::from_secs(90))
         .tcp_keepalive(Duration::from_secs(30))
-        .user_agent(concat!("PlanCouncil/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("TarotCouncil/", env!("CARGO_PKG_VERSION")))
         .build()
 }
 

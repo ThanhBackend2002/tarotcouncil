@@ -1,5 +1,5 @@
 {
-  "name": "plancouncil",
+  "name": "tarotcouncil",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -19,14 +19,10 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-log": "^2.10.2",
-    "diff": "^9.0.0",
     "lucide-react": "^1.73.0",
-    "mermaid": "^12.3.0",
     "motion": "^14.14.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
     "zustand": "^5.1.0"
   },
   "devDependencies": {

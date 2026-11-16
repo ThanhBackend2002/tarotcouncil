@@ -1,24 +1,18 @@
 import { create } from "zustand";
 
-export type Tab = "council" | "history" | "settings";
+export type Tab = "reading" | "journal" | "settings";
 export type ThemePref = "system" | "dark" | "light";
 export type MotionPref = "system" | "on" | "off";
 
 interface UiStore {
   tab: Tab;
   setTab: (t: Tab) => void;
-  /** Yêu cầu Plan Viewer mở 1 version (từ khung hội thoại). `nonce` để bấm lại cùng version vẫn kích hoạt. */
-  planFocus: { version: number; nonce: number } | null;
-  focusPlan: (version: number) => void;
   /** Yêu cầu Cài đặt mở 1 tab cụ thể (vd. "providers" từ màn onboarding). `nonce` như planFocus. */
   settingsFocus: { tab: string; nonce: number } | null;
   openSettings: (tab?: string) => void;
-  /** Lọc phản hồi trong Timeline theo số hiệu section (vd "3.3"); null = không lọc. */
-  /** Hộp thoại xác nhận dừng họp (mở bằng Esc). */
-  stopConfirmOpen: boolean;
-  setStopConfirmOpen: (v: boolean) => void;
-  sectionFilter: string | null;
-  setSectionFilter: (n: string | null) => void;
+  /** Màn hỗ trợ ("Cần hỗ trợ?") — mở được từ mọi màn hình (plan §5). */
+  supportOpen: boolean;
+  setSupportOpen: (v: boolean) => void;
 
   /** Theme người dùng chọn ("system" = theo hệ điều hành). Lưu localStorage. */
   theme: ThemePref;
@@ -32,8 +26,8 @@ interface UiStore {
   motionReduced: boolean;
 }
 
-const THEME_KEY = "plancouncil.theme";
-const MOTION_KEY = "plancouncil.reducedMotion";
+const THEME_KEY = "tarotcouncil.theme";
+const MOTION_KEY = "tarotcouncil.reducedMotion";
 
 function readPref<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -73,15 +67,11 @@ const initialTheme = readPref<ThemePref>(THEME_KEY, ["system", "dark", "light"],
 const initialMotion = readPref<MotionPref>(MOTION_KEY, ["system", "on", "off"], "system");
 
 export const useUi = create<UiStore>((set) => ({
-  tab: "council",
+  tab: "reading",
   setTab: (tab) => set({ tab }),
-  planFocus: null,
-  focusPlan: (version) => set({ planFocus: { version, nonce: Date.now() } }),
   settingsFocus: null,
-  stopConfirmOpen: false,
-  setStopConfirmOpen: (stopConfirmOpen) => set({ stopConfirmOpen }),
-  sectionFilter: null,
-  setSectionFilter: (sectionFilter) => set({ sectionFilter }),
+  supportOpen: false,
+  setSupportOpen: (supportOpen) => set({ supportOpen }),
   openSettings: (tab) => set({ tab: "settings", settingsFocus: tab ? { tab, nonce: Date.now() } : null }),
 
   theme: initialTheme,

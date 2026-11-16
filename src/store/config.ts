@@ -71,20 +71,14 @@ export function providerOf(c: AppConfig, roleId: RoleId): Provider | undefined {
   return r ? c.providers.find((p) => p.id === r.provider_id) : undefined;
 }
 
-/** Role tham gia 1 phiên với danh sách phòng ban cho trước. */
-export function rolesInMeeting(c: AppConfig, departmentIds: string[]): RoleId[] {
-  const ids = new Set<RoleId>([c.meeting.chair_id, ...c.meeting.reviewer_ids]);
-  for (const d of c.departments) {
-    if (!departmentIds.includes(d.id)) continue;
-    ids.add(d.lead_id);
-    d.member_ids.forEach((m) => ids.add(m));
-  }
-  return [...ids];
+/** Thầy bói tham gia 1 lượt đọc + trưởng thầy (pha tổng hợp). */
+export function readersInReading(c: AppConfig, readerIds: RoleId[]): RoleId[] {
+  return [...new Set<RoleId>([...readerIds, c.tarot.chief_reader_id])];
 }
 
-/** Mọi role tham gia đều có model + provider có key (hoặc provider local, thường không cần key). */
-export function hasUsableKeys(c: AppConfig, departmentIds: string[] = c.meeting.department_ids): boolean {
-  return rolesInMeeting(c, departmentIds).every((id) => {
+/** Mọi thầy bói tham gia đều có model + provider có key (hoặc provider local, thường không cần key). */
+export function hasUsableKeys(c: AppConfig, readerIds: RoleId[] = c.tarot.default_readers): boolean {
+  return readersInReading(c, readerIds).every((id) => {
     const r = c.roles.find((x) => x.id === id);
     const p = providerOf(c, id);
     return !!r && !!r.model.trim() && !!p && (!!p.api_key?.trim() || isLocalUrl(p.base_url));

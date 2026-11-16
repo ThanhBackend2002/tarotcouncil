@@ -37,7 +37,7 @@ export function toastError(e: CommandError | unknown, fallbackTitle?: string) {
       : { kind: "internal" as const, message: e instanceof Error ? e.message : String(e) };
   useToast.getState().push(
     {
-      tone: err.kind === "already_running" || err.kind === "invalid" ? "warning" : "error",
+      tone: err.kind === "busy" || err.kind === "invalid" ? "warning" : "error",
       title: fallbackTitle ?? ERROR_TITLE[err.kind] ?? "Lỗi",
       message: err.message,
     },

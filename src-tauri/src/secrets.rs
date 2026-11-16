@@ -1,9 +1,12 @@
 //! API key nằm NGOÀI config.json.
 //!
-//! - `keyring` (mặc định): keyring của hệ điều hành, service `plancouncil`, account
-//!   `provider:<id>` / `websearch:<provider>`.
-//! - `file`: `secrets.json` plaintext (0600 trên Unix, ghi atomic) — chỉ khi người dùng đồng ý.
-//! - `memory`: chỉ trong RAM, mất khi đóng app.
+//! Người dùng chọn được 2 chế độ (plan §2 bước 3):
+//! - `keyring` (mặc định): keyring của hệ điều hành, service `com.tarotcouncil.app`
+//!   (tách hẳn khỏi PlanCouncil), account `provider:<id>`.
+//! - `memory`: chỉ trong RAM, mất khi đóng app — dùng khi keyring khoá / không khả dụng.
+//!
+//! `set_secret` từ chối `file`; nhánh đọc `secrets.json` chỉ còn để không làm mất key nếu file
+//! đó tồn tại (vd người dùng tự đặt), và mọi lần lưu đều đồng bộ lại file.
 //!
 //! Runtime vẫn giữ key thật ở `api_key` (hydrate sau `load_config()`), nên `llm_client`,
 //! `health`, `tools` không cần biết key nằm ở đâu.
@@ -27,7 +30,7 @@ use serde_json::Value;
 use crate::config::{AppConfig, KeyStorage, MASK_PREFIX};
 use crate::storage::write_atomic;
 
-pub const SERVICE: &str = "plancouncil";
+pub const SERVICE: &str = "com.tarotcouncil.app";
 pub const SECRETS_FILE: &str = "secrets.json";
 const CONFIG_FILE: &str = "config.json";
 
@@ -197,10 +200,9 @@ impl SecretStore for KeyringStore {
 #[serde(rename_all = "snake_case")]
 pub enum TargetKind {
     Provider,
-    Websearch,
 }
 
-/// Key nào: `{kind: "provider", id: <provider id>}` hoặc `{kind: "websearch", id: <dịch vụ>}`.
+/// Key nào: `{kind: "provider", id: <provider id>}`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Target {
     pub kind: TargetKind,
@@ -212,32 +214,23 @@ impl Target {
         Self { kind: TargetKind::Provider, id: id.to_owned() }
     }
 
-    pub fn websearch(cfg: &AppConfig) -> Self {
-        Self { kind: TargetKind::Websearch, id: cfg.web_search.provider.as_str().to_owned() }
-    }
-
     /// Account trong keyring / khoá trong secrets.json.
     pub fn account(&self) -> String {
         match self.kind {
             TargetKind::Provider => format!("provider:{}", self.id),
-            TargetKind::Websearch => format!("websearch:{}", self.id),
         }
     }
 }
 
-/// Mọi chỗ có thể chứa key trong config: từng provider + dịch vụ tìm web đang chọn.
+/// Mọi chỗ có thể chứa key trong config: từng provider.
 pub fn targets(cfg: &AppConfig) -> Vec<Target> {
-    let mut v: Vec<Target> = cfg.providers.iter().map(|p| Target::provider(&p.id)).collect();
-    v.push(Target::websearch(cfg));
-    v
+    cfg.providers.iter().map(|p| Target::provider(&p.id)).collect()
 }
 
 fn slot<'a>(cfg: &'a AppConfig, t: &Target) -> Option<(Option<&'a str>, KeyStorage)> {
     let key = |k: &'a Option<String>| k.as_deref().filter(|s| !s.trim().is_empty());
     match t.kind {
         TargetKind::Provider => cfg.provider(&t.id).map(|p| (key(&p.api_key), p.key_storage)),
-        TargetKind::Websearch => (cfg.web_search.provider.as_str() == t.id)
-            .then(|| (key(&cfg.web_search.api_key), cfg.web_search.key_storage)),
     }
 }
 
@@ -248,10 +241,6 @@ fn slot_mut<'a>(cfg: &'a mut AppConfig, t: &Target) -> Option<(&'a mut Option<St
             .iter_mut()
             .find(|p| p.id == t.id)
             .map(|p| (&mut p.api_key, &mut p.key_storage)),
-        TargetKind::Websearch => {
-            let w = &mut cfg.web_search;
-            (w.provider.as_str() == t.id).then_some((&mut w.api_key, &mut w.key_storage))
-        }
     }
 }
 
@@ -375,13 +364,6 @@ impl Secrets {
         }
     }
 
-    /// Như `startup` nhưng CHỈ ĐỌC: nạp key vào `cfg`, không migrate / không ghi file nào.
-    /// Dùng cho tiến trình phụ (MCP server) chạy song song với app desktop.
-    pub fn hydrate_readonly(&self, cfg: &mut AppConfig) {
-        let mut inner = self.lock();
-        self.load_keys(&mut inner, cfg);
-    }
-
     /// Nạp key từ keyring / secrets.json vào `cfg`; key plaintext trong config.json được giữ và đánh dấu `legacy`.
     fn load_keys(&self, inner: &mut Inner, cfg: &mut AppConfig) {
         inner.legacy.clear();
@@ -466,7 +448,7 @@ impl Secrets {
         self.write_config(cfg, legacy)?;
         self.fault("config_verify")?;
         let bytes = fs::read(self.config_path())?;
-        let (back, _) = AppConfig::from_json(&bytes)?;
+        let back = AppConfig::from_json(&bytes)?;
         for t in targets(&back) {
             let on_disk = slot(&back, &t).and_then(|(k, _)| k).is_some();
             if on_disk != legacy.contains(&t.account()) {
@@ -587,6 +569,11 @@ impl Secrets {
         api_key: &str,
         storage: KeyStorage,
     ) -> Result<KeyStorage, SecretError> {
+        if storage == KeyStorage::File {
+            return Err(SecretError::Invalid(
+                "TarotCouncil chỉ lưu key trong keyring hoặc RAM — không hỗ trợ lưu ra file".into(),
+            ));
+        }
         let acct = target.account();
         let (cur, _) = slot(cfg, target).ok_or_else(|| {
             SecretError::Invalid(format!("'{acct}' không có trong cấu hình đã lưu — hãy Lưu cấu hình trước"))
@@ -692,6 +679,7 @@ impl Secrets {
     }
 
     /// Target đầu tiên trong `wanted` bị thiếu key (RAM sau khởi động lại, keyring khoá…).
+    #[allow(dead_code)] // M1: chặn luận giải khi key RAM đã mất
     pub fn first_missing(&self, cfg: &AppConfig, wanted: &[Target]) -> Option<Target> {
         let list = self.target_statuses(cfg);
         wanted.iter().find(|w| list.iter().any(|s| &s.target == *w && s.missing)).cloned()
@@ -752,7 +740,6 @@ fn config_bytes(cfg: &AppConfig, legacy: &HashSet<String>) -> serde_json::Result
             put(item.as_object_mut(), Target::provider(&p.id));
         }
     }
-    put(v.get_mut("web_search").and_then(Value::as_object_mut), Target::websearch(cfg));
     serde_json::to_vec_pretty(&v)
 }
 
@@ -793,7 +780,7 @@ fn contains_plain_key(bytes: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Provider, WebSearchProvider};
+    use crate::config::Provider;
     use crate::storage::Storage;
 
     /// Kho giả trong RAM; có thể giả lập lỗi từng thao tác.
@@ -849,7 +836,7 @@ mod tests {
     }
 
     fn env() -> Env {
-        let dir = std::env::temp_dir().join(format!("plancouncil-secrets-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("tarotcouncil-secrets-{}", uuid::Uuid::new_v4()));
         let storage = Storage::with_root(dir.clone()).unwrap();
         let fake = Arc::new(FakeStore::default());
         let secrets = Secrets::new(fake.clone(), &dir);
@@ -864,11 +851,10 @@ mod tests {
         fn boot_legacy(&self) -> AppConfig {
             fs::write(
                 self.dir.join(CONFIG_FILE),
-                br#"{"schema_version":3,
+                br#"{"schema_version":1,
                     "providers":[
                         {"id":"a","name":"A","base_url":"https://a.example/v1","api_key":"sk-aaaa-11111111"},
-                        {"id":"b","name":"B","base_url":"https://b.example/v1","api_key":"sk-bbbb-22222222"}],
-                    "web_search":{"provider":"tavily","api_key":"tvly-cccc-3333"}}"#,
+                        {"id":"b","name":"B","base_url":"https://b.example/v1","api_key":"sk-bbbb-22222222"}]}"#,
             )
             .unwrap();
             self.boot()
@@ -904,10 +890,8 @@ mod tests {
         let cfg = e.boot_legacy();
         assert_eq!(e.fake.val("provider:a").as_deref(), Some("sk-aaaa-11111111"));
         assert_eq!(e.fake.val("provider:b").as_deref(), Some("sk-bbbb-22222222"));
-        assert_eq!(e.fake.val("websearch:tavily").as_deref(), Some("tvly-cccc-3333"));
-        // Runtime vẫn có key → llm_client/health/tools không cần đổi.
+        // Runtime vẫn có key → llm_client/health không cần đổi.
         assert_eq!(cfg.resolve_key("a"), Some("sk-aaaa-11111111"));
-        assert_eq!(cfg.web_search.api_key.as_deref(), Some("tvly-cccc-3333"));
         let text = e.config_text();
         assert!(!text.contains("api_key") && !text.contains("sk-"), "{text}");
         let s = e.status_of(&cfg, &pa());
@@ -917,7 +901,6 @@ mod tests {
         // Mở lại app: hydrate từ keyring.
         let again = e.boot();
         assert_eq!(again.resolve_key("b"), Some("sk-bbbb-22222222"));
-        assert_eq!(again.web_search.api_key.as_deref(), Some("tvly-cccc-3333"));
     }
 
     #[test]
@@ -927,7 +910,7 @@ mod tests {
         let cfg = e.boot_legacy();
         assert_eq!(cfg.resolve_key("a"), Some("sk-aaaa-11111111"));
         let text = e.config_text();
-        assert!(text.contains("sk-aaaa-11111111") && text.contains("tvly-cccc-3333"));
+        assert!(text.contains("sk-aaaa-11111111"));
         assert!(!e.dir.join(SECRETS_FILE).exists(), "không được tự fallback ra file");
         let s = e.status_of(&cfg, &pa());
         assert_eq!((s.storage, s.migrated, s.has_key), (KeyStorage::File, false, true));
@@ -935,7 +918,7 @@ mod tests {
 
         // Lưu config khác (không đổi key) vẫn giữ key plaintext ở chỗ cũ.
         let mut next = cfg.redacted().merge_secrets(&cfg);
-        next.max_rounds = 5;
+        next.max_retries = 5;
         e.secrets.persist(&mut next, &cfg).unwrap();
         assert!(e.config_text().contains("sk-aaaa-11111111"));
 
@@ -991,7 +974,6 @@ mod tests {
         // Webview gửi lại bản mask → giữ key; "" → xoá; key mới → keyring.
         let mut incoming = cfg.redacted();
         incoming.providers[1].api_key = Some(String::new());
-        incoming.web_search.api_key = Some("tvly-new-99999999".into());
         let mut merged = incoming.merge_secrets(&cfg);
         e.secrets.persist(&mut merged, &cfg).unwrap();
         cfg = merged;
@@ -999,7 +981,6 @@ mod tests {
         assert_eq!(e.fake.val("provider:a").as_deref(), Some("sk-aaaa-11111111"));
         assert_eq!(cfg.resolve_key("b"), None);
         assert_eq!(e.fake.val("provider:b"), None);
-        assert_eq!(e.fake.val("websearch:tavily").as_deref(), Some("tvly-new-99999999"));
         assert!(!e.config_text().contains("api_key"));
 
         // Xoá provider → xoá luôn key trong keyring.
@@ -1072,41 +1053,24 @@ mod tests {
         assert_eq!((s.storage, s.missing), (KeyStorage::Memory, true));
     }
 
+    /// Plan §2 bước 3: chỉ còn keyring + RAM; nhánh `keyring_locked` dùng RAM cho phiên hiện tại.
     #[test]
-    fn file_mode_writes_secrets_json_with_owner_only_permissions() {
+    fn file_mode_is_rejected_and_locked_keyring_falls_back_to_memory() {
         let e = env();
         let mut cfg = with_provider("a");
-        cfg.web_search.provider = WebSearchProvider::Brave;
         e.secrets.save_config(&cfg).unwrap();
-        e.fake.set("provider:a", "stale").unwrap();
-        e.secrets.set_secret(&mut cfg, &pa(), "sk-file-12345678", KeyStorage::File).unwrap();
-        let path = e.dir.join(SECRETS_FILE);
-        let map: BTreeMap<String, String> = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-        assert_eq!(map.get("provider:a").map(String::as_str), Some("sk-file-12345678"));
-        assert!(!e.config_text().contains("sk-file"));
-        assert_eq!(e.fake.val("provider:a"), None, "bản cũ trong keyring phải bị xoá");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
-            assert_eq!(fs::metadata(e.dir.join(CONFIG_FILE)).unwrap().permissions().mode() & 0o777, 0o600);
-        }
-        let after = e.boot();
-        assert_eq!(after.resolve_key("a"), Some("sk-file-12345678"));
-        assert_eq!(e.status_of(&after, &pa()).storage, KeyStorage::File);
+        let err = e.secrets.set_secret(&mut cfg, &pa(), "sk-file-12345678", KeyStorage::File).unwrap_err();
+        assert_eq!(err.code(), "invalid");
+        assert!(!e.dir.join(SECRETS_FILE).exists());
+        assert_eq!(cfg.resolve_key("a"), None);
 
-        // Đổi key qua save_config → vẫn ở file (đã đồng ý trước đó).
-        let mut incoming = after.redacted();
-        incoming.providers[0].api_key = Some("sk-file-new-87654321".into());
-        let mut merged = incoming.merge_secrets(&after);
-        e.secrets.persist(&mut merged, &after).unwrap();
-        assert!(fs::read_to_string(&path).unwrap().contains("sk-file-new-87654321"));
-
-        // Xoá → secrets.json biến mất.
-        e.secrets.delete_secret(&mut merged, &pa()).unwrap();
-        assert!(!path.exists());
-        assert_eq!(merged.resolve_key("a"), None);
-        assert_eq!(merged.providers[0].key_storage, KeyStorage::Keyring);
+        // Keyring khoá → lỗi keyring_locked, UI chuyển sang RAM.
+        *e.fake.fail_set.lock().unwrap() = Some(SecretError::Locked("user canceled".into()));
+        let err = e.secrets.set_secret(&mut cfg, &pa(), "sk-ram-12345678", KeyStorage::Keyring).unwrap_err();
+        assert_eq!(err.code(), "keyring_locked");
+        assert_eq!(e.secrets.set_secret(&mut cfg, &pa(), "sk-ram-12345678", KeyStorage::Memory).unwrap(), KeyStorage::Memory);
+        assert_eq!(cfg.resolve_key("a"), Some("sk-ram-12345678"));
+        assert!(!e.config_text().contains("sk-ram") && !e.dir.join(SECRETS_FILE).exists());
     }
 
     #[test]
@@ -1131,16 +1095,18 @@ mod tests {
             "invalid"
         );
         assert_eq!(e.secrets.set_secret(&mut cfg, &pa(), "  ", KeyStorage::Keyring).unwrap_err().code(), "invalid");
-        // websearch target phải khớp dịch vụ đang chọn
-        let ws = Target { kind: TargetKind::Websearch, id: "brave".into() };
-        assert!(e.secrets.set_secret(&mut cfg, &ws, "k", KeyStorage::Keyring).is_err());
     }
 
     #[test]
     fn leftover_backup_and_corrupt_files_are_reported_not_deleted() {
         let e = env();
-        // load_config với file v1 → storage tạo config.pre-migration-backup.json (còn key).
-        fs::write(e.dir.join(CONFIG_FILE), br#"{"default_endpoint":{"api_key":"sk-old-12345678"}}"#).unwrap();
+        // Key plaintext trong config.json → migrate sang keyring; bản backup cũ còn key → báo cáo.
+        fs::write(
+            e.dir.join(CONFIG_FILE),
+            br#"{"providers":[{"id":"default","name":"OpenAI","base_url":"https://api.openai.com/v1","api_key":"sk-old-12345678"}]}"#,
+        )
+        .unwrap();
+        fs::write(e.dir.join("config.pre-migration-backup.json"), br#"{"api_key":"sk-old-12345678"}"#).unwrap();
         let cfg = e.boot();
         assert_eq!(cfg.providers[0].api_key.as_deref(), Some("sk-old-12345678"));
         assert!(!e.config_text().contains("sk-old"));
@@ -1153,10 +1119,10 @@ mod tests {
         assert!(e.dir.join("config.pre-migration-backup.json").exists());
 
         // Chỉ xoá file nằm trong danh sách.
-        let outside = e.dir.join("sessions").display().to_string();
+        let outside = e.dir.join("readings").display().to_string();
         let remaining = e.secrets.delete_leftovers(&[left[0].clone(), outside]).unwrap();
         assert_eq!(remaining, vec![left[1].clone()]);
-        assert!(e.dir.join("sessions").exists());
+        assert!(e.dir.join("readings").exists());
     }
 
     #[test]

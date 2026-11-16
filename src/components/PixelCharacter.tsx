@@ -1,7 +1,8 @@
 import { memo, useMemo } from "react";
 import { makeSprite, SPRITE_W, type Rect } from "../lib/pixel";
 import type { RoleMeta } from "../lib/agents";
-import type { AgentStatus } from "../store/session";
+/** Trạng thái hoạt hình của nhân vật: đứng yên / đang suy ngẫm / xong / lỗi. */
+export type AgentStatus = "idle" | "thinking" | "done" | "error";
 
 function Rects({ rects }: { rects: Rect[] }) {
   return (

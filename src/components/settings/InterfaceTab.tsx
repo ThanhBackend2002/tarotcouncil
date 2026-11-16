@@ -97,7 +97,7 @@ export function InterfaceTab() {
         <SectionTitle title="Giao diện" desc="Áp dụng ngay và lưu trên máy này, không cần bấm Lưu." />
         <RadioCards name="theme" legend="Theme" choices={THEMES} value={theme} onChange={setTheme} />
         <p className="mt-2 text-[11px] text-fg-subtle">
-          Đang dùng: <b className="text-fg-soft">{resolvedTheme === "dark" ? "Tối" : "Sáng"}</b>. Phòng họp pixel luôn giữ nền tối riêng.
+          Đang dùng: <b className="text-fg-soft">{resolvedTheme === "dark" ? "Tối" : "Sáng"}</b>. Phòng đọc bài pixel luôn giữ nền tối riêng.
         </p>
       </Panel>
 
@@ -110,25 +110,6 @@ export function InterfaceTab() {
         </p>
       </Panel>
 
-      <Panel className="p-4">
-        <SectionTitle title="Phím tắt" desc="Dùng được ở màn Phòng họp." />
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-          <dt>
-            <Kbd>Ctrl/⌘ + Enter</Kbd>
-          </dt>
-          <dd className="text-fg-muted">Bắt đầu họp (khi đã nhập yêu cầu và chưa có phiên nào đang chạy)</dd>
-          <dt>
-            <Kbd>Esc</Kbd>
-          </dt>
-          <dd className="text-fg-muted">Dừng cuộc họp đang chạy (có hỏi xác nhận)</dd>
-        </dl>
-      </Panel>
     </div>
-  );
-}
-
-function Kbd({ children }: { children: ReactNode }) {
-  return (
-    <kbd className="rounded-control border border-line-strong bg-surface-2 px-1.5 py-0.5 font-code text-[11px] text-fg-soft">{children}</kbd>
   );
 }

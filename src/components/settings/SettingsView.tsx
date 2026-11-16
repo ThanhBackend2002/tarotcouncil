@@ -6,23 +6,19 @@ import { isLocalUrl, useConfig } from "../../store/config";
 import { toast, toastError } from "../../store/toast";
 import { useUi } from "../../store/ui";
 import { Button, Panel, cx } from "../ui";
-import { ContextToolsTab } from "./ContextToolsTab";
-import { DepartmentsTab } from "./DepartmentsTab";
-import { Field, INPUT, NumberInput, SectionTitle, Toggle, type Errors } from "./fields";
+import { Field, INPUT, NumberInput, SectionTitle, type Errors } from "./fields";
 import { InterfaceTab } from "./InterfaceTab";
-import { MeetingTab } from "./MeetingTab";
 import { PricingTab } from "./PricingTab";
 import { ProvidersTab, apiRoot, type FetchState } from "./ProvidersTab";
 import { RolesTab } from "./RolesTab";
+import { TarotTab } from "./TarotTab";
 
-type TabId = "providers" | "roles" | "departments" | "meeting" | "context" | "general" | "interface" | "pricing";
+type TabId = "providers" | "roles" | "tarot" | "general" | "interface" | "pricing";
 
 const TABS: { id: TabId; label: string; match: (k: string) => boolean }[] = [
-  { id: "roles", label: "Vai trò", match: (k) => k.startsWith("role.") },
-  { id: "departments", label: "Phòng ban", match: (k) => k.startsWith("dept.") },
-  { id: "meeting", label: "Cuộc họp", match: (k) => k.startsWith("meeting.") || k === "general.max_rounds" },
-  { id: "context", label: "Bối cảnh & Công cụ", match: (k) => k.startsWith("context.") },
-  { id: "general", label: "Chung", match: (k) => k.startsWith("general.") && k !== "general.max_rounds" },
+  { id: "tarot", label: "Đọc bài", match: (k) => k.startsWith("tarot.") },
+  { id: "roles", label: "Thầy bói", match: (k) => k.startsWith("role.") },
+  { id: "general", label: "Chung", match: (k) => k.startsWith("general.") },
   { id: "providers", label: "Provider", match: (k) => k.startsWith("provider") },
   { id: "pricing", label: "Giá model", match: (k) => k.startsWith("pricing") },
   // Tuỳ chọn hiển thị trên máy này (localStorage), không thuộc AppConfig → không có lỗi validate.
@@ -44,7 +40,6 @@ function validate(c: AppConfig): Errors {
   const range = (key: string, v: number, lo: number, hi: number) => {
     if (bad(v, lo, hi)) e[key] = `Trong khoảng ${lo}–${hi}`;
   };
-  range("general.max_rounds", c.max_rounds, 1, 10);
   range("general.request_timeout_secs", c.request_timeout_secs, 10, 1800);
   range("general.stream_idle_timeout_secs", c.stream_idle_timeout_secs, 10, 600);
   range("general.max_retries", c.max_retries, 0, 6);
@@ -60,28 +55,9 @@ function validate(c: AppConfig): Errors {
   const roleIds = new Set(c.roles.map((r) => r.id));
   for (const r of c.roles) {
     if (!r.name.trim()) e[`role.${r.id}.name`] = "Không được để trống";
-    // Role chưa gán provider/model vẫn lưu được; chỉ bắt buộc khi role tham gia họp (backend kiểm tra lúc Start).
+    // Thầy bói chưa gán provider/model vẫn lưu được; chỉ bắt buộc khi tham gia lượt đọc.
     if (r.provider_id && !c.providers.some((p) => p.id === r.provider_id)) e[`role.${r.id}.provider`] = "Provider không tồn tại";
     range(`role.${r.id}.temperature`, r.temperature, 0, 2);
-  }
-
-  for (const d of c.departments) {
-    if (!d.name.trim()) e[`dept.${d.id}.name`] = "Không được để trống";
-    if (!roleIds.has(d.lead_id)) e[`dept.${d.id}.lead`] = "Chọn trưởng phòng";
-    if (d.member_ids.some((m) => !roleIds.has(m))) e[`dept.${d.id}.members`] = "Có thành viên không tồn tại";
-    else if (d.member_ids.includes(d.lead_id)) e[`dept.${d.id}.members`] = "Trưởng phòng không được là thành viên";
-    else if (d.member_ids.length > 12) e[`dept.${d.id}.members`] = "Tối đa 12 thành viên";
-    range(`dept.${d.id}.max_rounds`, d.max_rounds, 1, 5);
-  }
-
-  if (c.max_tool_steps !== 0) range("context.max_tool_steps", c.max_tool_steps, 1, 12);
-  range("context.max_results", c.web_search.max_results, 1, 10);
-  if (c.company_context.text.length > 20_000) e["context.text"] = "Tối đa 20.000 ký tự";
-  if (c.web_search.provider === "searxng" && c.web_search.base_url.trim() && !isUrl(c.web_search.base_url)) {
-    e["context.searxng"] = "URL http(s) không hợp lệ";
-  }
-  for (const w of c.workspaces) {
-    if (!w.name.trim() || !w.path.trim()) e[`context.ws.${w.id}`] = "Cần tên và đường dẫn";
   }
 
   for (const [model, p] of Object.entries(c.pricing ?? {})) {
@@ -89,16 +65,13 @@ function validate(c: AppConfig): Errors {
     if (vals.some((v) => typeof v !== "number" || !Number.isFinite(v) || v < 0)) e[`pricing.${model}`] = "Giá phải là số ≥ 0";
   }
 
-  const m = c.meeting;
-  range("meeting.max_auto_reviewers", m.max_auto_reviewers, 1, 12);
-  range("meeting.max_auto_departments", m.max_auto_departments, 0, 8);
-  range("meeting.max_invites", m.max_invites, 0, 6);
-  if (m.required_role_ids.some((r) => !roleIds.has(r))) e["meeting.required"] = "Có role không tồn tại";
-  if (!roleIds.has(m.chair_id)) e["meeting.chair"] = "Chọn chủ trì";
-  if (m.reviewer_ids.length === 0) e["meeting.reviewers"] = "Cần ít nhất 1 reviewer";
-  else if (m.reviewer_ids.length > 12) e["meeting.reviewers"] = "Tối đa 12 reviewer";
-  else if (m.reviewer_ids.some((r) => !roleIds.has(r))) e["meeting.reviewers"] = "Có reviewer không tồn tại";
-  else if (m.reviewer_ids.includes(m.chair_id)) e["meeting.reviewers"] = "Chủ trì không được đồng thời là reviewer";
+  const t = c.tarot;
+  if (t.default_readers.length === 0 || t.default_readers.length > 4) e["tarot.readers"] = "Chọn 1–4 thầy bói";
+  else if (t.default_readers.some((r) => !roleIds.has(r))) e["tarot.readers"] = "Có thầy bói không tồn tại";
+  if (!roleIds.has(t.chief_reader_id)) e["tarot.chief"] = "Chọn trưởng thầy";
+  if (t.max_total_tokens != null && (!Number.isInteger(t.max_total_tokens) || t.max_total_tokens < 1000)) {
+    e["tarot.max_total_tokens"] = "Số nguyên ≥ 1000 hoặc để trống";
+  }
   return e;
 }
 
@@ -107,7 +80,6 @@ function normalize(c: AppConfig): AppConfig {
     ...c,
     providers: c.providers.map((p) => ({ ...p, name: p.name.trim(), base_url: p.base_url.trim() })),
     roles: c.roles.map((r) => ({ ...r, name: r.name.trim(), title: r.title.trim(), model: r.model.trim() })),
-    departments: c.departments.map((d) => ({ ...d, name: d.name.trim(), mission: d.mission.trim() })),
   };
 }
 
@@ -116,7 +88,7 @@ const hasKey = (k: string | null) => !!k && k.trim() !== "";
 export function SettingsView() {
   const { config, revision, load, save, saving, loading, patchModels } = useConfig();
   const [draft, setDraft] = useState<AppConfig | null>(null);
-  const [tab, setTab] = useState<TabId>("roles");
+  const [tab, setTab] = useState<TabId>("tarot");
   // Lần đầu có config: chưa có provider nào → mở thẳng tab Provider (cần thêm API key trước).
   const tabInit = useRef(false);
   useEffect(() => {
@@ -260,7 +232,6 @@ export function SettingsView() {
               >
                 {t.label}
                 {t.id === "roles" && <span className="text-[11px] text-fg-subtle">{draft.roles.length}</span>}
-                {t.id === "departments" && <span className="text-[11px] text-fg-subtle">{draft.departments.length}</span>}
                 {n > 0 && <span className="rounded-full bg-danger-subtle px-1.5 text-[10px] text-danger">{n}</span>}
               </button>
             );
@@ -292,9 +263,7 @@ export function SettingsView() {
           />
         )}
         {tab === "roles" && <RolesTab draft={draft} errors={errors} dirty={dirty} update={update} />}
-        {tab === "departments" && <DepartmentsTab draft={draft} errors={errors} update={update} />}
-        {tab === "meeting" && <MeetingTab draft={draft} errors={errors} update={update} />}
-        {tab === "context" && <ContextToolsTab draft={draft} saved={config} errors={errors} dirty={dirty} update={update} />}
+        {tab === "tarot" && <TarotTab draft={draft} errors={errors} update={update} />}
         {tab === "general" && <GeneralTab draft={draft} errors={errors} update={update} />}
         {tab === "pricing" && <PricingTab draft={draft} errors={errors} update={update} />}
         {tab === "interface" && <InterfaceTab />}
@@ -337,9 +306,6 @@ function GeneralTab({
             <option value="json_object">json_object</option>
             <option value="off">off (chỉ dựa vào prompt)</option>
           </select>
-        </Field>
-        <Field label="Stream plan" hint="Hiện plan theo thời gian thực">
-          <Toggle checked={draft.stream_plans} onChange={(v) => set({ stream_plans: v })} label="Bật" />
         </Field>
       </div>
     </Panel>

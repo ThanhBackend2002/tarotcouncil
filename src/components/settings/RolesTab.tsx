@@ -13,15 +13,11 @@ import { Field, INPUT, ModelPicker, NumberInput, SectionTitle, TextArea, TextInp
 
 const PALETTE = ["#a78bfa", "#38bdf8", "#f472b6", "#fbbf24", "#34d399", "#fb923c", "#f43f5e", "#22d3ee", "#a3e635", "#e879f9"];
 
-/** Role đang được dùng ở đâu (chặn xoá + hiển thị badge). */
+/** Thầy bói đang được dùng ở đâu (chặn xoá + hiển thị badge). */
 export function usageOf(c: AppConfig, id: RoleId): string[] {
   const out: string[] = [];
-  if (c.meeting.chair_id === id) out.push("Chủ trì");
-  if (c.meeting.reviewer_ids.includes(id)) out.push("Reviewer họp chính");
-  for (const d of c.departments) {
-    if (d.lead_id === id) out.push(`Trưởng phòng ${d.name}`);
-    else if (d.member_ids.includes(id)) out.push(`Thành viên ${d.name}`);
-  }
+  if (c.tarot.chief_reader_id === id) out.push("Trưởng thầy");
+  if (c.tarot.default_readers.includes(id)) out.push("Thầy bói mặc định");
   return out;
 }
 
@@ -59,7 +55,7 @@ export function RolesTab({
       ? { ...template, name: `${template.name} (copy)` }
       : {
           id: "",
-          name: "Role mới",
+          name: "Thầy bói mới",
           title: "",
           level: "engineer",
           icon: "user",
@@ -67,8 +63,8 @@ export function RolesTab({
           description: "",
           instructions: "",
           provider_id: p?.id ?? "default",
-          model: draft.roles.find((r) => r.id === draft.meeting.chair_id)?.model ?? p?.models[0] ?? "",
-          temperature: 0.4,
+          model: draft.roles.find((r) => r.id === draft.tarot.chief_reader_id)?.model ?? p?.models[0] ?? "",
+          temperature: 0.7,
           appearance: EMPTY_LOOK,
         };
     const role = { ...base, id: newId("role") };
@@ -105,15 +101,15 @@ export function RolesTab({
     <div className="space-y-4">
       {unassigned > 0 && (
         <p className="rounded-control border border-warn-line bg-warn-subtle px-3 py-2 text-xs text-warn">
-          {unassigned} role chưa chọn provider/model. Dùng <b>Gán model hàng loạt</b> bên dưới để gán nhanh. Role chưa gán vẫn lưu được,
-          nhưng không thể tham gia họp.
+          {unassigned} thầy bói chưa chọn provider/model. Dùng <b>Gán model hàng loạt</b> bên dưới để gán nhanh. Thầy bói chưa gán vẫn
+          lưu được, nhưng không thể tham gia lượt đọc.
         </p>
       )}
       <BulkAssign draft={draft} visible={visible} update={update} />
       <Panel className="p-4">
         <SectionTitle
-          title={`Vai trò (${draft.roles.length})`}
-          desc="Thêm/bớt tự do. Mỗi role có persona (chỉ dẫn chuyên môn) và model riêng. Role được dùng ở phòng ban hoặc cuộc họp."
+          title={`Thầy bói (${draft.roles.length})`}
+          desc="Thêm/bớt tự do. Mỗi thầy bói có lối luận bài (persona) và model riêng."
         >
           <div className="relative w-56">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-fg-subtle" />

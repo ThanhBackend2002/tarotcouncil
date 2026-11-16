@@ -1,74 +1,37 @@
-# PlanCouncil
+# TarotCouncil
 
-Phòng họp Multi-Agent dạng "công ty": bạn tự quản lý các vai trò (C-Level → Staff, mỗi role một model) và phòng ban. Chủ trì giao việc → các phòng ban họp nội bộ song song → chủ trì tổng hợp plan → reviewer phản biện cho tới khi hội tụ. Giao diện phòng họp pixel-art, nhân vật trao đổi bằng bong bóng thoại.
+Ứng dụng desktop bốc bài và luận giải tarot: bạn nhập câu hỏi, chọn kiểu trải, tự bốc lá từ bộ bài đã tráo,
+rồi một "hội đồng thầy bói" AI luận giải. Chỉ mang tính giải trí.
 
-Tài liệu: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (kiến trúc, IPC contract, bảo mật) · [docs/ROADMAP.md](docs/ROADMAP.md) (các bước tiếp theo) · [docs/MCP.md](docs/MCP.md) (dùng từ Claude Code qua MCP: `plancouncil --mcp`).
+Kế hoạch: [plancouncil-a1654060-v3.md](plancouncil-a1654060-v3.md) · Đồng bộ upstream: [UPSTREAM.md](UPSTREAM.md)
 
-## Cấu trúc
+## Trạng thái
 
-```
-plancouncil/
-├── package.json · vite.config.ts · tsconfig.json · index.html
-├── src/                         # React 19 + TS + Tailwind v4
-│   ├── main.tsx · App.tsx · index.css
-│   ├── lib/
-│   │   ├── contracts.ts         # IPC contract mirror của models.rs
-│   │   ├── ipc.ts               # wrapper có kiểu cho 10 command
-│   │   ├── bridge.ts            # listen council-event → store
-│   │   ├── agents.ts            # màu, icon, nhãn của agent/trạng thái
-│   │   └── sections.ts          # tách plan theo ## cho Diff View
-│   │   └── pixel.ts             # sinh nhân vật pixel-art 16×24 từ role (không dùng asset ngoài)
-│   ├── store/                   # zustand: session (reducer nhiều scope), council, config, history, toast, ui
-│   └── components/
-│       ├── MeetingRoom.tsx      # văn phòng pixel: người viết plan + reviewer quanh bàn, bong bóng thoại
-│       ├── PixelCharacter.tsx   # nhân vật + chân dung pixel (chớp mắt, nói, suy nghĩ, ✓/✗)
-│       ├── Timeline.tsx         # khung hội thoại kiểu chat
-│       ├── ScopeBar.tsx         # chuyển giữa họp chính và các phòng ban
-│       ├── PlanViewer · Markdown · Mermaid · DiffView · HistoryView
-│       └── settings/            # tab Provider · Vai trò · Phòng ban · Cuộc họp · Chung
-└── src-tauri/
-    ├── Cargo.toml · build.rs · tauri.conf.json
-    ├── capabilities/default.json
-    ├── icons/                   # placeholder — thay bằng `npm run tauri icon <logo.png>`
-    └── src/
-        ├── main.rs              # entry (ẩn console trên Windows release)
-        ├── lib.rs               # Tauri commands, AppState, TauriSink
-        ├── models.rs            # domain + event schema + validation
-        ├── config.rs            # endpoint per-agent, redact/merge API key
-        ├── storage.rs           # config.json + sessions/*.json (atomic write)
-        ├── llm_client.rs        # OpenAI-compatible client: retry, SSE, lenient JSON
-        ├── prompts.rs           # prompt dựng từ persona của role + anti-injection framing
-        ├── roster.rs            # danh mục role (C-Level → Staff) + phòng ban mặc định
-        └── orchestrator.rs      # convergence loop (không phụ thuộc Tauri) + integration tests
-```
-
-## Chạy
-
-```bash
-# Ubuntu: sudo apt install libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev libayatana-appindicator3-dev build-essential
-# Windows 11: WebView2 có sẵn; cần MSVC Build Tools
-npm install
-npm run tauri dev
-npm run verify                 # cargo test + clippy + vitest + tsc
-```
-
-## Build bộ cài
-
-Mỗi OS build trên chính OS đó (Tauri không cross-compile ổn định):
-
-| OS | Lệnh | Kết quả trong `src-tauri/target/.../release/bundle/` |
+| Mốc | Nội dung | Trạng thái |
 |---|---|---|
-| macOS (máy đang dùng) | `npm run build:mac` | `macos/PlanCouncil.app`, `dmg/*.dmg` |
-| macOS (Intel + Apple Silicon) | `rustup target add x86_64-apple-darwin aarch64-apple-darwin` rồi `npm run build:mac:universal` | `universal-apple-darwin/release/bundle/dmg/*.dmg` |
-| Windows 11 | `npm run build:win` (cần MSVC Build Tools) | `nsis/*-setup.exe`, `msi/*.msi` |
-| Ubuntu | cài gói ở mục Chạy (+ `libgtk-3-dev libxdo-dev patchelf`) rồi `npm run build:linux` | `deb/*.deb`, `rpm/*.rpm`, `appimage/*.AppImage` |
+| M0 | Fork surgery từ PlanCouncil, cách ly dữ liệu + keyring, cấu hình provider/thầy bói, `interpret_reading` stub | ✅ |
+| M1 | `deck.rs`, `draw.rs` (ChaCha20 + golden test), trải 1 lá, 1 thầy bói, `safety.rs`, `SupportScreen`, hậu kiểm, quyền riêng tư | ⏳ |
+| M2 | Trải 3/5 lá, 2–4 thầy bói + tổng hợp, `DeckFan`, `ReadingRoom`, Journal + FTS, khôi phục sau crash | ⏳ |
+| M3 | Celtic Cross, sprite Major, hiệu ứng tráo/lật hoàn chỉnh | ⏳ |
 
-**Build cả 3 OS cùng lúc:** push code lên GitHub → tab Actions → **Build apps** → Run workflow (hoặc push tag `v0.1.0`). Bộ cài nằm ở mục Artifacts của lần chạy.
+## Kiến trúc
 
-Bộ cài **chưa ký số**:
-- macOS: lần đầu mở bằng chuột phải → Open, hoặc `xattr -cr /Applications/PlanCouncil.app`. Bản chưa ký sẽ hỏi lại quyền Keychain sau mỗi lần cài bản mới.
-- Windows: SmartScreen cảnh báo → More info → Run anyway.
+- **Rust (`src-tauri/src`)** — mọi lời gọi AI chạy ở đây; UI không bao giờ chạm API key.
+  `config.rs` (provider, thầy bói, tuỳ chọn tarot), `roster.rs` (4 thầy bói + Trưởng thầy), `secrets.rs`
+  (keyring hoặc RAM), `storage.rs` (ghi atomic), `llm_client.rs` / `budget.rs` / `cost.rs` / `health.rs` (từ PlanCouncil).
+- **React (`src`)** — React 19, zustand, motion, Tailwind v4. `lib/contracts.ts` mirror kiểu của Rust, gồm event contract `reading-event`.
 
-**WSL (Ubuntu) với `node_modules` cài từ Windows:** chạy `npm run build` bên Windows, rồi trong WSL chạy `bash scripts/wsl-run.sh` (build Rust ở `~/.cache/plancouncil-target`, nhúng sẵn `dist/`, mở cửa sổ qua WSLg).
+Dữ liệu lưu tại `%APPDATA%\tarotcouncil\` (Windows), `~/Library/Application Support/tarotcouncil/` (macOS),
+`~/.config/tarotcouncil/` (Linux). Keyring service: `com.tarotcouncil.app`. Hoàn toàn tách khỏi PlanCouncil.
 
-Dữ liệu: `~/.config/plancouncil/` (Linux) · `%APPDATA%\plancouncil\` (Windows) · `~/Library/Application Support/plancouncil/` (macOS). Log: thư mục log của app (tauri-plugin-log).
+## Phát triển
+
+```sh
+npm ci
+npm run tauri dev      # chạy app
+npm run verify         # cargo test + clippy -D warnings + vitest + tsc
+npm run build:win      # hoặc build:mac / build:linux
+```
+
+> Windows: nếu `vitest` báo `Cannot read properties of undefined (reading 'config')`, terminal đang ở đường dẫn
+> ổ đĩa chữ thường (`c:\…`). Mở lại terminal ở `C:\…` rồi chạy lại.

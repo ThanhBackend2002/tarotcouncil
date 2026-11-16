@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build + chạy PlanCouncil trong WSL (Ubuntu) với frontend nhúng sẵn từ ../dist.
+# Build + chạy TarotCouncil trong WSL (Ubuntu) với frontend nhúng sẵn từ ../dist.
 #
 # Dùng khi node_modules được cài từ Windows (binary native của Vite/Tauri CLI là bản win32,
 # nên `npm run tauri dev` trong WSL không chạy được). Quy trình:
@@ -19,7 +19,7 @@ if [[ ! -f "$ROOT/dist/index.html" ]]; then
 fi
 
 # Target trên ext4 của WSL: build nhanh hơn nhiều so với /mnt/c.
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$HOME/.cache/plancouncil-target}"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$HOME/.cache/tarotcouncil-target}"
 # WSLg: WebKitGTK hay ra cửa sổ trắng với DMABUF renderer trên GPU ảo.
 export WEBKIT_DISABLE_DMABUF_RENDERER=1
 

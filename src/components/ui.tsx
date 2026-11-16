@@ -3,7 +3,9 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
 import { STATUS_META, TONE_CLASS, type Tone } from "../lib/agents";
-import type { Phase } from "../store/session";
+import type { ReadingStatus } from "../lib/contracts";
+
+export type Phase = "idle" | ReadingStatus;
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -102,7 +104,7 @@ export function StatusBadge({ status }: { status: Phase }) {
   const m = STATUS_META[status];
   return (
     <Badge tone={m.tone}>
-      {status === "running" && <span className="size-1.5 animate-pulse rounded-full bg-info-solid" aria-hidden />}
+      {(status === "drawing" || status === "interpreting") && <span className="size-1.5 animate-pulse rounded-full bg-info-solid" aria-hidden />}
       {m.label}
     </Badge>
   );

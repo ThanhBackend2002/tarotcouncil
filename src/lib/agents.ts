@@ -1,4 +1,6 @@
 import {
+  CircleHelp,
+  Moon,
   BadgeCheck,
   Brain,
   Bug,
@@ -33,11 +35,13 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import type { Appearance, CastMember, RoleDef, RoleId, RoleLevel, SessionStatus } from "./contracts";
+import type { Appearance, CastMember, ReadingStatus, RoleDef, RoleId, RoleLevel } from "./contracts";
 
 /** Icon key (lưu trong RoleDef.icon) → component lucide. */
 export const ROLE_ICONS: Record<string, LucideIcon> = {
   crown: Crown,
+  moon: Moon,
+  "help-circle": CircleHelp,
   cpu: Cpu,
   target: Target,
   wallet: Wallet,
@@ -96,24 +100,9 @@ export interface RoleMeta {
   appearance?: Appearance;
 }
 
-/** Phiên cũ (trước khi có role động) không có cast → dùng bảng này. */
-const LEGACY: Record<string, Omit<RoleMeta, "id" | "model">> = {
-  architect: { name: "Architect", title: "Solution Architect", color: "#a78bfa", icon: Compass, iconKey: "compass", level: "lead" },
-  scale_reviewer: { name: "Scale", title: "Scale & Performance Reviewer", color: "#38bdf8", icon: Gauge, iconKey: "gauge", level: "engineer" },
-  chaos_reviewer: {
-    name: "Chaos & Security",
-    title: "Chaos & Security Reviewer",
-    color: "#f472b6",
-    icon: ShieldExclamationPoint,
-    iconKey: "shield-alert",
-    level: "engineer",
-  },
-  pragmatic_reviewer: { name: "Pragmatic", title: "Pragmatic Tech Lead", color: "#fbbf24", icon: Wrench, iconKey: "wrench", level: "lead" },
-};
-
 export type RoleResolver = (id: RoleId) => RoleMeta;
 
-/** Ưu tiên ảnh chụp trong phiên (cast) → role hiện tại trong config → bảng legacy → mặc định. */
+/** Ưu tiên ảnh chụp trong lượt đọc (cast) → thầy bói hiện tại trong config → mặc định. */
 export function makeResolver(cast: CastMember[], roles: RoleDef[]): RoleResolver {
   const byCast = new Map(cast.map((c) => [c.id, c]));
   const byRole = new Map(roles.map((r) => [r.id, r]));
@@ -122,7 +111,6 @@ export function makeResolver(cast: CastMember[], roles: RoleDef[]): RoleResolver
     const hit = cache.get(id);
     if (hit) return hit;
     const c = byCast.get(id) ?? byRole.get(id);
-    const legacy = LEGACY[id];
     const meta: RoleMeta = c
       ? {
           id,
@@ -135,9 +123,7 @@ export function makeResolver(cast: CastMember[], roles: RoleDef[]): RoleResolver
           level: c.level ?? "engineer",
           appearance: c.appearance,
         }
-      : legacy
-        ? { id, model: "", ...legacy }
-        : { id, name: id, title: "", color: "#a1a1aa", icon: User, iconKey: "user", model: "", level: "engineer" };
+      : { id, name: id, title: "", color: "#a1a1aa", icon: User, iconKey: "user", model: "", level: "engineer" };
     cache.set(id, meta);
     return meta;
   };
@@ -145,18 +131,15 @@ export function makeResolver(cast: CastMember[], roles: RoleDef[]): RoleResolver
 
 export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 
-export const STATUS_META: Record<SessionStatus | "idle", { label: string; tone: Tone }> = {
+export const STATUS_META: Record<ReadingStatus | "idle", { label: string; tone: Tone }> = {
   idle: { label: "Sẵn sàng", tone: "neutral" },
-  running: { label: "Đang họp", tone: "info" },
-  converged: { label: "Hội tụ", tone: "success" },
-  partially_approved: { label: "Duyệt một phần", tone: "warning" },
-  max_rounds_reached: { label: "Hết số vòng", tone: "warning" },
-  truncated: { label: "Bị cắt", tone: "warning" },
-  budget_exhausted: { label: "Hết ngân sách", tone: "warning" },
-  unresolved: { label: "Chưa giải quyết", tone: "warning" },
-  interrupted: { label: "Bị gián đoạn", tone: "neutral" },
-  cancelled: { label: "Đã dừng", tone: "neutral" },
+  drawing: { label: "Đang bốc bài", tone: "info" },
+  drawn: { label: "Đã bốc xong", tone: "info" },
+  interpreting: { label: "Đang luận giải", tone: "info" },
+  done: { label: "Hoàn tất", tone: "success" },
   failed: { label: "Lỗi", tone: "danger" },
+  cancelled: { label: "Đã dừng", tone: "neutral" },
+  support: { label: "Cần hỗ trợ", tone: "warning" },
 };
 
 export const TONE_CLASS: Record<Tone, string> = {
@@ -169,7 +152,9 @@ export const TONE_CLASS: Record<Tone, string> = {
 
 export const ERROR_TITLE: Record<string, string> = {
   invalid: "Dữ liệu không hợp lệ",
-  already_running: "Đang có phiên chạy",
+  busy: "Lượt đọc đang bận",
+  not_implemented: "Chưa hỗ trợ",
+  persist_failed: "Không lưu được lượt đọc",
   not_found: "Không tìm thấy",
   storage: "Lỗi lưu trữ",
   llm: "Lỗi LLM",
@@ -184,11 +169,10 @@ export function formatTokens(n: number): string {
 }
 
 export const USAGE_KIND_LABEL: Record<string, string> = {
-  assign: "Giao việc",
-  research: "Nghiên cứu (công cụ)",
-  plan: "Viết plan",
-  review: "Phản biện",
-  staffing: "Chọn thành phần họp",
+  reader: "Luận giải",
+  reader_retry: "Luận giải (thử lại)",
+  synthesis: "Tổng hợp",
+  synthesis_retry: "Tổng hợp (thử lại)",
 };
 
 export function formatDate(iso: string | null | undefined): string {

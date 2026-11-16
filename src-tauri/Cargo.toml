@@ -1,13 +1,13 @@
 [package]
-name = "plancouncil"
+name = "tarotcouncil"
 version = "0.1.0"
-description = "PlanCouncil — Multi-Agent Architecture Review Room"
+description = "TarotCouncil — hội đồng thầy bói AI đọc bài tarot"
 edition = "2021"
 rust-version = "1.80"
 
 [lib]
 # `_lib` suffix tránh xung đột tên giữa lib và bin trên Windows (cargo issue #8519)
-name = "plancouncil_lib"
+name = "tarotcouncil_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -15,7 +15,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 log = "0.4"
 
@@ -39,11 +38,8 @@ serde_json = "1"
 dirs = "6"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
-blake3 = "1"                             # hash nội dung section (section revise)
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
 
-# Index tìm kiếm (rebuild được) cho lịch sử phiên. `bundled` = tự build SQLite, có sẵn FTS5.
-rusqlite = { version = "0.37", features = ["bundled"] }
 unicode-normalization = "0.1"
 
 # Keyring của hệ điều hành (secrets.rs). keyring v3 KHÔNG bật feature = mock không lưu gì

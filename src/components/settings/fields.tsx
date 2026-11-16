@@ -477,19 +477,11 @@ export function findStatus(report: SecretStatusReport | null, target: SecretTarg
 async function syncTarget(target: SecretTarget, update: (f: (c: AppConfig) => AppConfig) => void) {
   const fresh = await ipc.getConfig();
   useConfig.setState({ config: fresh });
-  if (target.kind === "provider") {
-    const p = fresh.providers.find((x) => x.id === target.id);
-    update((c) => ({
-      ...c,
-      providers: c.providers.map((x) => (x.id === target.id ? { ...x, api_key: p?.api_key ?? null, key_storage: p?.key_storage } : x)),
-    }));
-  } else {
-    update((c) =>
-      c.web_search.provider === target.id
-        ? { ...c, web_search: { ...c.web_search, api_key: fresh.web_search.api_key, key_storage: fresh.web_search.key_storage } }
-        : c,
-    );
-  }
+  const p = fresh.providers.find((x) => x.id === target.id);
+  update((c) => ({
+    ...c,
+    providers: c.providers.map((x) => (x.id === target.id ? { ...x, api_key: p?.api_key ?? null, key_storage: p?.key_storage } : x)),
+  }));
 }
 
 const STORAGE_BADGE: Record<KeyStorage, { label: string; tone: "success" | "warning" }> = {
@@ -518,7 +510,6 @@ const isNewKey = (v: string | null) => !!v && !!v.trim() && !v.startsWith(MASK_P
 export function SecretControls({
   target,
   status,
-  secretsFile,
   value,
   canStore,
   update,
@@ -526,7 +517,6 @@ export function SecretControls({
 }: {
   target: SecretTarget;
   status: SecretTargetStatus | undefined;
-  secretsFile: string | undefined;
   value: string | null;
   canStore: boolean;
   update: (f: (c: AppConfig) => AppConfig) => void;
@@ -548,7 +538,7 @@ export function SecretControls({
     }
   }, [status, target.kind, target.id]);
 
-  const store = async (storage: KeyStorage) => {
+  const store = async (storage: Exclude<KeyStorage, "file">) => {
     setBusy(true);
     setError(null);
     try {
@@ -589,7 +579,7 @@ export function SecretControls({
         )}
         {status?.missing && (
           <Badge tone="danger">
-            <TriangleAlert className="size-3" /> Thiếu key — nhập lại để họp
+            <TriangleAlert className="size-3" /> Thiếu key — nhập lại trước khi đọc bài
           </Badge>
         )}
         {status?.has_key && status.migrated && status.storage !== "keyring" && !fresh && (
@@ -630,25 +620,16 @@ export function SecretControls({
             <Button variant="ghost" disabled={busy} onClick={() => void store("keyring")}>
               Thử lại keyring
             </Button>
-            <Button disabled={busy} onClick={() => void store("memory")}>
-              Không lưu, nhập mỗi lần mở app
-            </Button>
-            <Button variant="danger" loading={busy} onClick={() => void store("file")}>
-              Lưu dạng file
+            <Button loading={busy} onClick={() => void store("memory")}>
+              Chỉ giữ trong RAM phiên này
             </Button>
           </>
         }
       >
         <div className="space-y-2 text-xs text-fg-soft">
           <p>
-            <b>Lưu dạng file</b>: key nằm <b>không mã hoá</b> trong
-            <code className="mx-1 rounded bg-surface-2 px-1 py-0.5 font-mono text-[11px] break-all text-warn">
-              {secretsFile ?? "secrets.json"}
-            </code>
-            (chỉ tài khoản của bạn đọc được). Phần mềm chạy dưới tài khoản này, bản sao lưu máy hoặc thư mục đồng bộ đám mây đều có thể đọc được key.
-          </p>
-          <p>
-            <b>Không lưu</b>: key chỉ giữ trong RAM, mất khi đóng app — bạn sẽ phải nhập lại trước khi họp.
+            <b>Chỉ giữ trong RAM</b>: key dùng được cho phiên làm việc hiện tại và mất khi đóng app — bạn sẽ phải nhập
+            lại trước lượt đọc kế tiếp. TarotCouncil không lưu key ra file.
           </p>
         </div>
       </Dialog>

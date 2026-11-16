@@ -1,46 +1,27 @@
-import { Clock, Coins, Settings, Users } from "lucide-react";
-import { formatTokens } from "../lib/agents";
-import { MAIN_SCOPE } from "../lib/contracts";
+import { BookOpen, NotebookPen, Settings } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import { useCouncil } from "../store/council";
-import { mainOf } from "../store/session";
 import { useUi, type Tab } from "../store/ui";
-import { StatusBadge, cx } from "./ui";
+import { cx } from "./ui";
 
-const TABS: { id: Tab; label: string; icon: typeof Users }[] = [
-  { id: "council", label: "Phòng họp", icon: Users },
-  { id: "history", label: "Lịch sử", icon: Clock },
+const TABS: { id: Tab; label: string; icon: typeof BookOpen }[] = [
+  { id: "reading", label: "Bàn đọc bài", icon: BookOpen },
+  { id: "journal", label: "Nhật ký", icon: NotebookPen },
   { id: "settings", label: "Cài đặt", icon: Settings },
 ];
 
 export function Header() {
   const { tab, setTab } = useUi(useShallow((s) => ({ tab: s.tab, setTab: s.setTab })));
-  // Chỉ lấy giá trị nguyên thuỷ + `usage.total` → không re-render theo từng plan_delta.
-  const { status, round, maxRounds, hasPlan, deptCount, deptsDone, total } = useCouncil(
-    useShallow((s) => {
-      const live = s.live;
-      const main = mainOf(live);
-      const depts = live.scopeOrder.filter((id) => id !== MAIN_SCOPE).map((id) => live.scopes[id]!);
-      return {
-        status: live.status,
-        round: main.currentRound,
-        maxRounds: main.maxRounds,
-        hasPlan: main.plans.length > 0,
-        deptCount: depts.length,
-        deptsDone: depts.filter((d) => d.status !== "running").length,
-        total: live.usage.total,
-      };
-    }),
-  );
-  const running = status === "running";
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-6 border-b border-line bg-canvas px-4">
       <div className="flex items-center gap-2">
-        <div className="grid size-6 place-items-center rounded-control bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[11px] font-bold text-white">
-          PC
+        <div
+          className="grid size-6 place-items-center rounded-control bg-gradient-to-br from-violet-600 to-amber-500 text-[13px] text-white"
+          aria-hidden
+        >
+          ☾
         </div>
-        <span className="text-sm font-semibold tracking-tight">PlanCouncil</span>
+        <span className="text-sm font-semibold tracking-tight">TarotCouncil</span>
       </div>
 
       <nav className="flex items-center gap-1" aria-label="Điều hướng">
@@ -62,27 +43,7 @@ export function Header() {
       </nav>
 
       <div className="ml-auto flex items-center gap-3 text-xs text-fg-muted">
-        {running && (
-          <span>
-            {round > 0
-              ? `Họp chính · Round ${round}/${maxRounds || "?"}`
-              : hasPlan
-                ? "Chủ trì đang viết plan tổng…"
-                : deptCount > 0
-                  ? `Phòng ban đang họp (${deptsDone}/${deptCount} xong)`
-                  : "Đang khởi động…"}
-          </span>
-        )}
-        {total.calls > 0 && (
-          <span
-            className="inline-flex items-center gap-1 rounded-full bg-surface px-2 py-0.5 tabular-nums ring-1 ring-line"
-            title={`Input ${total.prompt_tokens.toLocaleString("vi-VN")} · Output ${total.completion_tokens.toLocaleString("vi-VN")} · ${total.calls} lần gọi`}
-          >
-            <Coins className="size-3.5 text-warn" />
-            {formatTokens(total.prompt_tokens + total.completion_tokens)} token
-          </span>
-        )}
-        <StatusBadge status={status} />
+        <span className="hidden md:inline">Chỉ mang tính giải trí</span>
       </div>
     </header>
   );
