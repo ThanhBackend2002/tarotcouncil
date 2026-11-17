@@ -8,19 +8,29 @@ import { Button } from "../ui";
 import { CardBack } from "./TarotCard";
 
 const DECK = 78;
-const CARD_W = 50;
-const PAD = 14;
+const PER_ROW = 39;
+const CARD_W = 58;
+const PAD = 58;
+const ARC_DROP = 44;
+const ROW_GAP = 64;
+const MAX_ROT = 64; // -32° .. +32°
 /** Nhịp chia bài khi "Bốc tự động". */
 const DEAL_GAP_MS = 380;
 
 const sleep = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
 
-/** Hình học CỐ ĐỊNH của ô `i` trong quạt (không dồn chỗ khi rút lá → quạt không bị giật). */
+/** Hình học CỐ ĐỊNH của ô `i` trong quạt 2 tầng (0..38 hàng sau, 39..77 hàng trước). */
 function slot(i: number, width: number) {
-  const t = i / (DECK - 1);
-  const x = PAD + t * Math.max(0, width - 2 * PAD - CARD_W);
-  const lift = (1 - 4 * (t - 0.5) ** 2) * 22; // vòng cung: giữa cao, hai đầu thấp
-  const rot = (t - 0.5) * 34;
+  const row = i < PER_ROW ? 0 : 1;
+  const col = i % PER_ROW;
+  const t = col / (PER_ROW - 1);
+  // Hàng sau thu hẹp nhẹ hai đầu để ôm theo vòng cung đồng tâm với hàng trước.
+  const inset = row === 0 ? 18 : 0;
+  const usable = Math.max(0, width - 2 * (PAD + inset) - CARD_W);
+  const x = PAD + inset + t * usable;
+  const arc = (1 - 4 * (t - 0.5) ** 2) * ARC_DROP;
+  const lift = (row === 0 ? ROW_GAP : 0) + arc;
+  const rot = (t - 0.5) * (row === 0 ? MAX_ROT - 6 : MAX_ROT);
   return { x, lift, rot };
 }
 
@@ -44,6 +54,7 @@ export function DeckFan({ spread, animate }: { spread: Spread; animate: boolean 
   const cards = useRef(new Map<number, HTMLDivElement>());
   const [width, setWidth] = useState(0);
   const [cursor, setCursor] = useState(0);
+  const [kbActive, setKbActive] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   const [dealing, setDealing] = useState(false);
@@ -118,6 +129,7 @@ export function DeckFan({ spread, animate }: { spread: Spread; animate: boolean 
     const pos = remaining.indexOf(cursor);
     const move = (d: number) => {
       e.preventDefault();
+      setKbActive(true);
       const n = remaining[Math.min(remaining.length - 1, Math.max(0, pos + d))];
       if (n !== undefined) setCursor(n);
     };
@@ -137,6 +149,7 @@ export function DeckFan({ spread, animate }: { spread: Spread; animate: boolean 
       case "Enter":
       case " ":
         e.preventDefault();
+        setKbActive(true);
         onPick(cursor);
     }
   };
@@ -171,13 +184,19 @@ export function DeckFan({ spread, animate }: { spread: Spread; animate: boolean 
         aria-activedescendant={done ? undefined : `fan-${cursor}`}
         aria-disabled={locked}
         onKeyDown={onKey}
-        className="relative h-44 w-full overflow-hidden rounded-panel bg-[radial-gradient(ellipse_at_bottom,#2e1065_0%,#120f22_70%)] outline-offset-2 focus-visible:outline-2 focus-visible:outline-amber-300"
+        onFocus={(e) => {
+          if (e.currentTarget.matches(":focus-visible")) setKbActive(true);
+        }}
+        onBlur={() => setKbActive(false)}
+        className="relative h-[268px] w-full overflow-hidden rounded-panel border border-amber-500/15 bg-[radial-gradient(ellipse_at_bottom,rgba(46,16,101,0.78)_0%,rgba(18,15,34,0.62)_70%)] outline-offset-2 focus-visible:outline-2 focus-visible:outline-amber-300"
       >
         {width > 0 &&
           remaining.map((i, k) => {
             const s = slot(i, width);
-            const active = !locked && (i === cursor || i === hover);
+            const active = !locked && (i === hover || (kbActive && i === cursor));
             const isPending = i === pending;
+            const pop = isPending ? 30 : active ? 18 : 0;
+            const rad = (s.rot * Math.PI) / 180;
             const jitter = ((i * 37) % 23) - 11;
             return (
               <motion.div
@@ -190,10 +209,13 @@ export function DeckFan({ spread, animate }: { spread: Spread; animate: boolean 
                 role="option"
                 aria-selected={i === cursor}
                 aria-label={`Lá úp số ${i + 1}`}
-                onMouseEnter={() => setHover(i)}
+                onMouseEnter={() => {
+                  setHover(i);
+                  setKbActive(false);
+                }}
                 onMouseLeave={() => setHover((h) => (h === i ? null : h))}
                 onClick={() => onPick(i)}
-                className={locked ? "absolute bottom-4 cursor-default" : "absolute bottom-4 cursor-pointer"}
+                className={locked ? "absolute bottom-3 cursor-default" : "absolute bottom-3 cursor-pointer"}
                 style={{ width: CARD_W, aspectRatio: "35 / 60", transformOrigin: "50% 100%", left: 0, zIndex: isPending ? 200 : active ? 100 : i }}
                 initial={false}
                 animate={
@@ -201,10 +223,15 @@ export function DeckFan({ spread, animate }: { spread: Spread; animate: boolean 
                     ? {
                         // Gom vào giữa → trộn → xoè lại về ô cố định.
                         x: [s.x, center + jitter, center - jitter * 0.6, center + jitter * 0.3, s.x],
-                        y: [-s.lift, -10, -16 - (k % 4) * 2, -10, -s.lift],
+                        y: [-s.lift, -24, -32 - (k % 4) * 2, -24, -s.lift],
                         rotate: [s.rot, jitter * 0.5, -jitter * 0.4, jitter * 0.2, s.rot],
                       }
-                    : { x: s.x, y: -s.lift - (isPending ? 34 : active ? 20 : 0), rotate: s.rot, scale: isPending ? 1.08 : 1 }
+                    : {
+                        x: s.x + Math.sin(rad) * pop,
+                        y: -s.lift - Math.cos(rad) * pop,
+                        rotate: s.rot,
+                        scale: isPending ? 1.08 : 1,
+                      }
                 }
                 transition={
                   shuffling && animate

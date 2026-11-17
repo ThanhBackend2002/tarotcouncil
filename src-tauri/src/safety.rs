@@ -6,6 +6,7 @@
 //! có cờ `crisis` (lớp 2). Bắt nhầm chỉ khiến người dùng phải diễn đạt lại câu hỏi.
 
 use serde::{Deserialize, Serialize};
+use unicode_normalization::UnicodeNormalization;
 
 use crate::normalize::fold;
 
@@ -20,18 +21,21 @@ pub enum Category {
     Legal,
 }
 
-/// Cụm từ ĐÃ chuẩn hoá (không dấu, viết thường). Thêm mẫu mới → thêm vào corpus test.
+/// Cụm từ mẫu (viết thường, có dấu chuẩn). Khi cửa sổ từ trong văn bản đầu vào có dấu tiếng Việt,
+/// so khớp chính xác có dấu (tránh bắt nhầm "từ từ" → "tự tử", "hai bạn thân" → "hại bản thân",
+/// "mở tim" → "mổ tim", "cả cuộc đời" → "cá cược"); khi cửa sổ đầu vào gõ không dấu toàn bộ thì
+/// so khớp trên bản gấp không dấu.
 const SELF_HARM: &[&str] = &[
     // vi
-    "tu tu", "tu sat", "tu van minh", "muon chet", "muon di chet", "chet di cho xong", "chet cho xong",
-    "khong muon song", "khong muon song nua", "chan song", "het muon song", "song de lam gi", "song lam gi nua",
-    "ket thuc cuoc doi", "ket thuc cuoc song", "ket lieu ban than", "ket lieu doi minh", "tu ket lieu",
-    "giai thoat khoi cuoc doi", "roi khoi the gioi nay", "bien mat vinh vien", "khong con ton tai nua",
-    "nhay lau", "nhay cau", "uong thuoc ngu", "uong thuoc tu", "rach tay", "cat tay", "cat co tay", "treo co",
-    "tu hai", "tu lam dau ban than", "lam hai ban than", "hai ban than", "tu gay thuong tich",
-    "muon bien mat", "khong ai can minh", "ca the gioi se tot hon neu khong co minh",
+    "tự tử", "tự sát", "tự vẫn mình", "muốn chết", "muốn đi chết", "chết đi cho xong", "chết cho xong",
+    "không muốn sống", "không muốn sống nữa", "chán sống", "hết muốn sống", "sống để làm gì", "sống làm gì nữa",
+    "kết thúc cuộc đời", "kết thúc cuộc sống", "kết liễu bản thân", "kết liễu đời mình", "tự kết liễu",
+    "giải thoát khỏi cuộc đời", "rời khỏi thế giới này", "biến mất vĩnh viễn", "không còn tồn tại nữa",
+    "nhảy lầu", "nhảy cầu", "uống thuốc ngủ", "uống thuốc tự", "rạch tay", "cắt tay", "cắt cổ tay", "treo cổ",
+    "tự hại", "tự làm đau bản thân", "làm hại bản thân", "hại bản thân", "tự gây thương tích",
+    "muốn biến mất", "không ai cần mình", "cả thế giới sẽ tốt hơn nếu không có mình",
     // tiếng lóng / viết tắt phổ biến
-    "unalive", "kms", "tu tu cho roi",
+    "unalive", "kms", "tự tử cho rồi",
     // en
     "suicide", "suicidal", "kill myself", "killing myself", "end my life", "ending my life", "want to die",
     "wanna die", "self harm", "selfharm", "hurt myself", "cut myself", "cutting myself", "take my own life",
@@ -39,22 +43,22 @@ const SELF_HARM: &[&str] = &[
 ];
 
 const MEDICAL: &[&str] = &[
-    "benh", "ung thu", "khoi u", "chan doan", "xet nghiem", "phau thuat", "mo tim", "dieu tri", "hoa tri",
-    "uong thuoc", "thuoc men", "ke don thuoc", "bac si", "benh vien", "mang thai", "co thai", "sinh no", "say thai", "tram cam", "roi loan",
-    "tieu duong", "huyet ap", "covid", "suc khoe",
+    "bệnh", "ung thư", "khối u", "chẩn đoán", "xét nghiệm", "phẫu thuật", "mổ tim", "điều trị", "hoá trị", "hóa trị",
+    "uống thuốc", "thuốc men", "kê đơn thuốc", "bác sĩ", "bệnh viện", "mang thai", "có thai", "sinh nở", "sảy thai", "trầm cảm", "rối loạn",
+    "tiểu đường", "huyết áp", "covid", "sức khoẻ", "sức khỏe",
     "cancer", "tumor", "diagnosis", "surgery", "pregnant", "pregnancy", "doctor", "hospital", "disease",
     "medication", "depression",
 ];
 
 const FINANCIAL: &[&str] = &[
-    "co phieu", "chung khoan", "dau tu", "crypto", "bitcoin", "tien ao", "coin", "forex", "mua vang", "bat dong san",
-    "vay tien", "vay no", "no nan", "lai suat", "lo de", "xo so", "ve so", "danh bac", "ca do", "ca cuoc",
+    "cổ phiếu", "chứng khoán", "đầu tư", "crypto", "bitcoin", "tiền ảo", "coin", "forex", "mua vàng", "bất động sản",
+    "vay tiền", "vay nợ", "nợ nần", "lãi suất", "lô đề", "xổ số", "vé số", "đánh bạc", "cá độ", "cá cược",
     "stock", "stocks", "invest", "investment", "trading", "lottery", "gamble", "gambling",
 ];
 
 const LEGAL: &[&str] = &[
-    "kien tung", "khoi kien", "bi kien", "kien ra toa", "toa an", "phien toa", "ban an", "luat su", "phap ly",
-    "hop dong", "ly hon", "tranh chap", "quyen nuoi con", "di chuc", "thua ke", "bi bat", "cong an", "hinh su",
+    "kiện tụng", "khởi kiện", "bị kiện", "kiện ra toà", "kiện ra tòa", "toà án", "tòa án", "phiên toà", "phiên tòa", "bản án", "luật sư", "pháp lý",
+    "hợp đồng", "ly hôn", "tranh chấp", "quyền nuôi con", "di chúc", "thừa kế", "bị bắt", "công an", "hình sự",
     "lawsuit", "sue", "court", "lawyer", "attorney", "divorce", "custody", "contract", "arrested",
 ];
 
@@ -65,8 +69,36 @@ pub fn normalize(text: &str) -> String {
     spaced.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn contains_phrase(padded: &str, phrase: &str) -> bool {
-    padded.contains(&format!(" {phrase} "))
+struct Token {
+    raw: String,
+    folded: String,
+}
+
+fn tokenize(text: &str) -> Vec<Token> {
+    let nfc: String = text.nfc().collect();
+    let lower = nfc.to_lowercase();
+    let spaced: String = lower.chars().map(|c| if c.is_alphanumeric() { c } else { ' ' }).collect();
+    spaced
+        .split_whitespace()
+        .map(|w| Token { raw: w.to_owned(), folded: fold(w).0 })
+        .collect()
+}
+
+fn contains_phrase(tokens: &[Token], phrase: &str) -> bool {
+    let target: Vec<&str> = phrase.split_whitespace().collect();
+    if target.is_empty() || tokens.len() < target.len() {
+        return false;
+    }
+    let target_folded: Vec<String> = target.iter().map(|w| fold(w).0).collect();
+    tokens.windows(target.len()).any(|win| {
+        if !win.iter().zip(&target_folded).all(|(t, tf)| t.folded == *tf) {
+            return false;
+        }
+        // Nếu cụm từ trong văn bản có dấu tiếng Việt thì đòi hỏi khớp đúng dấu;
+        // nếu người dùng gõ hoàn toàn không dấu ở cụm này thì khớp qua bản gấp không dấu.
+        let has_diacritics = win.iter().any(|t| t.raw != t.folded);
+        !has_diacritics || win.iter().zip(&target).all(|(t, tw)| t.raw == *tw)
+    })
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -86,7 +118,7 @@ impl Scan {
 }
 
 pub fn scan(text: &str) -> Scan {
-    let padded = format!(" {} ", normalize(text));
+    let tokens = tokenize(text);
     let mut categories = Vec::new();
     for (cat, list) in [
         (Category::SelfHarm, SELF_HARM),
@@ -94,7 +126,7 @@ pub fn scan(text: &str) -> Scan {
         (Category::Financial, FINANCIAL),
         (Category::Legal, LEGAL),
     ] {
-        if list.iter().any(|p| contains_phrase(&padded, p)) {
+        if list.iter().any(|p| contains_phrase(&tokens, p)) {
             categories.push(cat);
         }
     }

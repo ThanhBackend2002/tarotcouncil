@@ -46,3 +46,5 @@
 {"text": "Dạo này nhà vắng vẻ quá", "expect": ["none"]}
 {"text": "Tâm trạng rối loạn và hỗn loạn quá, công việc thế nào", "expect": ["medical"]}
 {"text": "Chị Loan có quay lại không", "expect": ["none"]}
+{"text": "Tôi nên chuẩn bị gì cho việc phát triển tuyến tình cảm, hãy tiến triển từ từ nhé", "expect": ["none"]}
+{"text": "Tình cảm bắt đầu từ hai bạn thân và mở tim đón nhận cả cuộc đời", "expect": ["none"]}
