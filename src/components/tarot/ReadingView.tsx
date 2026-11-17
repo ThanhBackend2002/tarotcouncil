@@ -4,12 +4,19 @@ import { useAnimationsOn } from "../../lib/useAnimations";
 import { spreadOf, useCatalog } from "../../store/catalog";
 import { useReading } from "../../store/reading";
 import { AskPanel } from "./AskPanel";
+import { CardFlights } from "./CardFlights";
 import { DeckFan } from "./DeckFan";
 import { PrivacyNotice } from "./PrivacyNotice";
+import { ReadingChat } from "./ReadingChat";
+import { ReadingControls } from "./ReadingControls";
 import { ReadingResult } from "./ReadingResult";
 import { ReadingRoom } from "./ReadingRoom";
 
-/** Luồng chính: idle → asking → shuffling → drawing(k/n) → interpreting → done (+ support / error / cancelled). */
+/**
+ * Bố cục như CouncilView của PlanCouncil: trái (điều khiển + phòng đọc bài pixel + quạt bài + hội thoại),
+ * phải (bàn trải lá lớn + lời Trưởng Thầy + nghĩa gốc).
+ * Luồng: idle → asking → shuffling → drawing(k/n) → interpreting → done (+ support / error / cancelled).
+ */
 export function ReadingView() {
   const load = useCatalog((s) => s.load);
   const spreads = useCatalog((s) => s.spreads);
@@ -38,21 +45,25 @@ export function ReadingView() {
   }
 
   const spread = spreadOf(spreads, reading.spread_id);
-  if (!spread) {
-    return <div className="p-6 text-sm text-fg-subtle">Đang nạp kiểu trải…</div>;
-  }
+  if (!spread) return <div className="p-6 text-sm text-fg-subtle">Đang nạp kiểu trải…</div>;
   const drawing = (phase === "drawing" || phase === "shuffling") && reading.draws.length < spread.positions.length;
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-        <ReadingRoom spread={spread} animate={animate} />
+    <div className="grid h-full grid-cols-[minmax(520px,1fr)_1fr] gap-3 p-3">
+      <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto">
+        <ReadingControls spread={spread} />
+        {/* data-scene: cảnh pixel luôn tối, không theo theme sáng/tối. */}
+        <div data-scene className="contents">
+          <ReadingRoom spread={spread} />
+        </div>
         {drawing && <DeckFan spread={spread} animate={animate} />}
+        <ReadingChat spread={spread} />
       </div>
-      <aside className="w-[420px] shrink-0 overflow-y-auto border-l border-line p-4" aria-label="Lời giải">
-        <ReadingResult spread={spread} />
-      </aside>
+      <div className="min-h-0 min-w-0 overflow-y-auto" aria-label="Bàn trải và lời giải">
+        <ReadingResult spread={spread} animate={animate} />
+      </div>
       <PrivacyNotice />
+      <CardFlights />
     </div>
   );
 }

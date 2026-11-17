@@ -1,166 +1,174 @@
-import { CircleStop, LoaderCircle, Sparkles, SquarePlus, TriangleAlert } from "lucide-react";
-import type { Card, Draw, ReadingStatus, Spread } from "../../lib/contracts";
-import type { Phase } from "../../lib/readingSync";
-import { formatTokens } from "../../lib/agents";
-import { estimateReading } from "../../lib/estimate";
+import { useEffect, useRef, useState } from "react";
+import type { Card, Draw, Spread } from "../../lib/contracts";
 import { cardImage } from "../../lib/cardArt";
 import { useCatalog } from "../../store/catalog";
-import { useConfig, useResolver } from "../../store/config";
+import { unconfirmed, useFlight, useLanded } from "../../store/flight";
 import { useReading } from "../../store/reading";
-import { Badge, Button, Panel, StatusBadge, cx } from "../ui";
+import { Badge, Panel, cx } from "../ui";
+import { TarotCard } from "./TarotCard";
 
-const SAFETY_LABEL = { medical: "sức khoẻ", financial: "tài chính", legal: "pháp lý", self_harm: "" } as const;
+/** Bàn trải: chiều cao chuẩn hoá của mặt bàn so với chiều rộng (khung 16:10). */
+const BOARD_ASPECT = 10 / 16;
+/** Vùng đặt lá chiếm 88% bề rộng, 84% chiều cao bàn (phần còn lại là lề). */
+const SPAN_X = 0.88;
+const SPAN_Y = 0.84;
 
-/** `phase` cập nhật theo event (nhanh hơn `reading.status` trong bản ghi đã nạp). */
-const PHASE_STATUS: Partial<Record<Phase, ReadingStatus>> = {
-  interpreting: "interpreting",
-  done: "done",
-  error: "failed",
-  cancelled: "cancelled",
-  support: "support",
-};
+/** Bề rộng lá (% bề rộng bàn) để lá cao nhất lọt giữa 2 vị trí gần nhau nhất. */
+function cardWidth(spread: Spread): number {
+  const ps = spread.positions;
+  let minDy = 1;
+  let minDx = 1;
+  for (const a of ps) {
+    for (const b of ps) {
+      if (a === b || a.rotation || b.rotation) continue;
+      if (Math.abs(a.x - b.x) < 0.05) minDy = Math.min(minDy, Math.abs(a.y - b.y));
+      if (Math.abs(a.y - b.y) < 0.05) minDx = Math.min(minDx, Math.abs(a.x - b.x));
+    }
+  }
+  // Chừa khoảng giữa 2 lá; trải ≤ 5 lá có nhãn vị trí dưới mỗi lá → chừa thêm.
+  const gap = ps.length <= 5 ? 0.68 : 0.85;
+  const byHeight = ((minDy * SPAN_Y * BOARD_ASPECT * gap) / (60 / 35)) * 100;
+  const byWidth = minDx * SPAN_X * 0.8 * 100;
+  return Math.min(18, byHeight, byWidth, ((BOARD_ASPECT * 0.8) / (60 / 35)) * 100);
+}
 
-function StaticMeaning({ card, draw }: { card: Card | undefined; draw: Draw }) {
-  if (!card) return null;
-  const kw = draw.reversed ? card.keywords_reversed : card.keywords_upright;
+function Placeholder({ rotation, glow }: { rotation: number; glow?: boolean }) {
   return (
-    <div className="space-y-1">
-      <p className="text-xs text-fg-subtle">Nghĩa gốc · {kw.join(" · ")}</p>
-      <p className="text-sm leading-relaxed text-fg-soft">{draw.reversed ? card.meaning_reversed : card.meaning_upright}</p>
-    </div>
+    <div
+      className={cx(
+        "w-full rounded-[6%] border border-dashed",
+        glow ? "animate-pulse border-amber-300 bg-amber-300/15 shadow-[0_0_16px_rgba(252,211,77,0.45)]" : "border-amber-200/40 bg-black/10",
+      )}
+      style={{ aspectRatio: "35 / 60", rotate: `${rotation}deg` }}
+    />
   );
 }
 
-/** Trạng thái từng thầy bói (thay Timeline của PlanCouncil). */
-function ReadingTimeline() {
+/**
+ * Lá trên bàn trải. Lá vừa bốc (đang bay từ quạt) → giữ chỗ trống tới khi đáp → hiện mặt lưng → lật ngửa.
+ * Lá có sẵn (mở lượt cũ) → hiện ngửa ngay, không hiệu ứng.
+ */
+function BoardCard({ draw, rotation, animate }: { draw: Draw; rotation: number; animate: boolean }) {
+  const inFlight = useFlight((s) => s.flights.some((f) => f.fanIndex === draw.fan_index));
+  const arriving = useRef(inFlight);
+  const [revealed, setRevealed] = useState(!inFlight);
+  useEffect(() => {
+    if (!arriving.current || inFlight) return;
+    arriving.current = false;
+    const t = setTimeout(() => setRevealed(true), animate ? 90 : 0);
+    return () => clearTimeout(t);
+  }, [inFlight, animate]);
+  if (inFlight) return <Placeholder rotation={rotation} glow />;
+  return <TarotCard draw={draw} revealed={revealed} width="100%" animate={animate} rotation={rotation} />;
+}
+
+/** Lá RWS cỡ lớn đặt theo `x, y, rotation` của từng vị trí. */
+export function SpreadBoard({
+  spread,
+  animate,
+  slotAttr = "data-slot",
+  className,
+}: {
+  spread: Spread;
+  animate: boolean;
+  slotAttr?: "data-slot" | "data-popup-slot";
+  className?: string;
+}) {
   const reading = useReading((s) => s.reading)!;
-  const readers = useReading((s) => s.readers);
-  const synthesisRunning = useReading((s) => s.synthesisRunning);
-  const synthesis = useReading((s) => s.synthesis);
-  const resolve = useResolver(reading.cast);
-  const rows = [
-    ...reading.reader_ids.map((id) => {
-      const v = readers[id];
-      const text =
-        v?.status === "thinking"
-          ? `đang suy ngẫm${v.chars ? ` (${v.chars.toLocaleString("vi-VN")} ký tự)` : "…"}`
-          : v?.status === "done"
-            ? "đã luận xong"
-            : v?.status === "failed"
-              ? `không luận được — ${v.reason ?? ""}`
-              : "đang chờ";
-      return { id, text, tone: v?.status };
-    }),
-    {
-      id: reading.chief_reader_id,
-      text: synthesisRunning ? "đang tổng hợp…" : synthesis ? "đã tổng hợp" : "chờ hội đồng",
-      tone: synthesisRunning ? "thinking" : synthesis ? "done" : undefined,
-    },
-  ];
+  const phase = useReading((s) => s.phase);
+  const inAir = useFlight((s) => unconfirmed(s.flights, reading.picks));
+  const cw = cardWidth(spread);
+  const nextPos = phase === "drawing" ? reading.draws.length + inAir : -1;
   return (
-    <ul className="space-y-1 text-xs" aria-label="Tiến trình hội đồng">
-      {rows.map((r) => {
-        const m = resolve(r.id);
+    <section
+      aria-label={`Bàn trải ${spread.name_vi}`}
+      className={cx(
+        "relative w-full overflow-hidden rounded-panel border border-amber-500/20 bg-[radial-gradient(ellipse_at_center,#4c1d95_0%,#2e1065_60%,#1e1036_100%)]",
+        className,
+      )}
+      style={{ aspectRatio: `${1 / BOARD_ASPECT}` }}
+    >
+      <div className="pointer-events-none absolute inset-3 rounded-md border border-amber-300/20" />
+      {spread.positions.map((p) => {
+        const d = reading.draws.find((x) => x.position === p.index) ?? null;
         return (
-          <li key={r.id} className="flex items-center gap-2">
-            <span className="size-2 shrink-0 rounded-full" style={{ background: m.color }} aria-hidden />
-            <span className="font-medium text-fg-soft">{m.name}</span>
-            <span className={cx("min-w-0 truncate", r.tone === "failed" ? "text-warn" : r.tone === "done" ? "text-success" : "text-fg-muted")}>
-              {r.tone === "thinking" && <LoaderCircle className="mr-1 inline size-3 animate-spin" aria-hidden />}
-              {r.text}
-            </span>
-          </li>
+          <div
+            key={p.index}
+            className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+            style={{ left: `${((1 - SPAN_X) / 2 + p.x * SPAN_X) * 100}%`, top: `${((1 - SPAN_Y) / 2 + p.y * SPAN_Y) * 100}%`, width: `${cw}%`, zIndex: p.rotation ? 3 : 2 }}
+          >
+            {/* data-slot / data-popup-slot: đích của lá bay (CardFlights). */}
+            <div {...{ [slotAttr]: p.index }} data-rot={p.rotation} className="w-full">
+              {d ? <BoardCard draw={d} rotation={p.rotation} animate={animate} /> : <Placeholder rotation={p.rotation} glow={p.index === nextPos} />}
+            </div>
+            {!p.rotation && spread.positions.length <= 5 && (
+              <span className="mt-1 max-w-[140%] truncate rounded-sm bg-black/50 px-1 text-[10px] text-amber-100">
+                {p.index + 1}. {p.label_vi}
+              </span>
+            )}
+          </div>
         );
       })}
-    </ul>
+    </section>
   );
 }
 
-export function ReadingResult({ spread }: { spread: Spread }) {
-  const s = useReading();
+function CardReference({ card, draw, hint }: { card: Card | undefined; draw: Draw; hint?: string }) {
+  const kw = card ? (draw.reversed ? card.keywords_reversed : card.keywords_upright) : [];
+  return (
+    <Panel className="p-3">
+      <article aria-label={`${draw.position_label_vi}: ${draw.name_vi}`} className="flex gap-3">
+        <img
+          src={cardImage(draw.art_key)}
+          alt=""
+          className={cx("h-24 shrink-0 rounded-sm object-cover shadow", draw.reversed && "rotate-180")}
+          style={{ aspectRatio: "35 / 60" }}
+        />
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-[11px] tracking-wide text-fg-subtle uppercase">
+            {draw.position + 1}. {draw.position_label_vi}
+            {hint && <span className="normal-case"> — {hint}</span>}
+          </p>
+          <h3 className="font-semibold">
+            {draw.name_vi} <span className="text-xs font-normal text-fg-muted">({draw.name_en})</span>{" "}
+            <Badge tone={draw.reversed ? "warning" : "success"}>{draw.reversed ? "Ngược" : "Xuôi"}</Badge>
+          </h3>
+          {kw.length > 0 && <p className="text-xs text-fg-subtle">{kw.join(" · ")}</p>}
+          {card && <p className="text-sm leading-relaxed text-fg-soft">{draw.reversed ? card.meaning_reversed : card.meaning_upright}</p>}
+        </div>
+      </article>
+    </Panel>
+  );
+}
+
+/** Cột phải (vị trí PlanViewer của PlanCouncil): bàn trải lá lớn, lời Trưởng Thầy, nghĩa gốc từng lá. */
+export function ReadingResult({ spread, animate }: { spread: Spread; animate: boolean }) {
+  const reading = useReading((s) => s.reading);
+  const synthesis = useReading((s) => s.synthesis);
   const byId = useCatalog((c) => c.byId);
-  const config = useConfig((c) => c.config);
-  const reading = s.reading;
-  const resolve = useResolver(reading?.cast);
+  const landed = useLanded(reading?.draws ?? []);
   if (!reading) return null;
 
-  const full = reading.draws.length === spread.positions.length;
-  const canInterpret = full && (s.phase === "drawing" || s.phase === "error" || s.phase === "cancelled");
-  const interpreting = s.phase === "interpreting";
-  const outputs = reading.reader_ids.map((id) => ({ id, view: s.readers[id] }));
-  const flags = reading.safety_flags.filter((f) => f !== "self_harm");
-  const estimate = canInterpret && config && !s.usage ? estimateReading(config, spread.positions.length, reading.reader_ids, reading.chief_reader_id) : null;
-
   return (
-    <div className="space-y-3" aria-live="polite" aria-busy={interpreting}>
-      <Panel className="space-y-2 p-4">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-xs tracking-wide text-fg-subtle uppercase">{spread.name_vi}</h2>
-            <p className="mt-0.5 font-medium break-words">“{reading.question}”</p>
-          </div>
-          <StatusBadge status={PHASE_STATUS[s.phase] ?? reading.status} />
-        </div>
-        {flags.length > 0 && (
-          <p className="text-xs text-warn">
-            Câu hỏi liên quan tới {flags.map((f) => SAFETY_LABEL[f]).join(", ")} — lời giải sẽ không thay cho lời khuyên chuyên môn.
-          </p>
-        )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          {canInterpret && (
-            <Button variant="primary" icon={<Sparkles className="size-4" />} loading={s.busy} onClick={() => void s.interpret()}>
-              {s.phase === "drawing" ? "Mời hội đồng luận giải" : "Luận giải lại"}
-            </Button>
-          )}
-          {interpreting && (
-            <Button variant="danger" icon={<CircleStop className="size-4" />} onClick={() => void s.cancel()}>
-              Dừng
-            </Button>
-          )}
-          {!interpreting && (
-            <Button variant="ghost" icon={<SquarePlus className="size-4" />} onClick={s.ask}>
-              Lượt mới
-            </Button>
-          )}
-          {estimate && (
-            <span
-              className="ml-auto self-center text-[11px] text-fg-subtle tabular-nums"
-              title="Ước lượng tĩnh — chi phí thật có thể cao hơn khi thử lại hoặc chạy song song"
-            >
-              Ước tính ~{formatTokens(estimate.tokens)} token{estimate.costUsd != null ? ` · ~$${estimate.costUsd.toFixed(4)}` : ""}
-            </span>
-          )}
-          {s.usage && (
-            <span className="ml-auto self-center text-[11px] text-fg-subtle tabular-nums" title="Token thực tế của lượt đọc">
-              {formatTokens(s.usage.tokens)} token{s.usage.cost_usd != null ? ` · $${s.usage.cost_usd.toFixed(4)}` : ""}
-            </span>
-          )}
-        </div>
-        {s.error && (
-          <p className="flex gap-1.5 rounded-control bg-warn-subtle p-2 text-xs text-warn" role="alert">
-            <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            {s.error.message}
-          </p>
-        )}
-        {(interpreting || s.phase === "done" || s.phase === "error") && <ReadingTimeline />}
-      </Panel>
+    <div className="space-y-3">
+      <SpreadBoard spread={spread} animate={animate} />
 
-      {s.synthesis && (
+      {synthesis && (
         <Panel className="space-y-2 border-amber-500/30 p-4">
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-amber-300">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-amber-500">
             <span aria-hidden>♛</span> Lời Trưởng Thầy
-          </h3>
-          <p className="text-sm leading-relaxed">{s.synthesis.summary}</p>
+          </h2>
+          <p className="text-sm leading-relaxed">{synthesis.summary}</p>
           {(
             [
-              ["Hội đồng đồng thuận", s.synthesis.agreements],
-              ["Các cách hiểu khác nhau", s.synthesis.divergences],
-              ["Lời khuyên", s.synthesis.advice],
+              ["Hội đồng đồng thuận", synthesis.agreements],
+              ["Các cách hiểu khác nhau", synthesis.divergences],
+              ["Lời khuyên", synthesis.advice],
             ] as const
           ).map(([title, items]) =>
             items.length ? (
               <div key={title}>
-                <h4 className="text-xs font-medium text-fg-muted">{title}</h4>
+                <h3 className="text-xs font-medium text-fg-muted">{title}</h3>
                 <ul className="mt-0.5 list-disc space-y-0.5 pl-5 text-sm text-fg-soft">
                   {items.map((x, i) => (
                     <li key={i}>{x}</li>
@@ -169,84 +177,15 @@ export function ReadingResult({ spread }: { spread: Spread }) {
               </div>
             ) : null,
           )}
-          <p className="border-t border-line pt-2 text-[11px] text-fg-subtle italic">{s.synthesis.disclaimer}</p>
+          <p className="border-t border-line pt-2 text-[11px] text-fg-subtle italic">{synthesis.disclaimer}</p>
         </Panel>
       )}
 
-      {reading.draws.map((d) => {
-        const card = byId.get(d.card_id);
-        const pos = spread.positions[d.position];
-        const done = outputs.filter((o) => o.view?.result?.output);
-        return (
-          <Panel key={d.position} className="p-3">
-            <article aria-label={`${d.position_label_vi}: ${d.name_vi}`} className="flex gap-3">
-              <img
-                src={cardImage(d.art_key)}
-                alt=""
-                className={cx("h-24 shrink-0 rounded-sm object-cover shadow", d.reversed && "rotate-180")}
-                style={{ aspectRatio: "35 / 60" }}
-              />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div>
-                  <p className="text-[11px] tracking-wide text-fg-subtle uppercase">
-                    {d.position + 1}. {d.position_label_vi}
-                    {pos && <span className="normal-case"> — {pos.meaning_hint}</span>}
-                  </p>
-                  <h3 className="font-semibold">
-                    {d.name_vi} <span className="text-xs font-normal text-fg-muted">({d.name_en})</span>{" "}
-                    <Badge tone={d.reversed ? "warning" : "success"}>{d.reversed ? "Ngược" : "Xuôi"}</Badge>
-                  </h3>
-                </div>
-                {done.length > 0 ? (
-                  done.map(({ id, view }) => {
-                    const p = view!.result!.output!.positions.find((x) => x.position === d.position);
-                    if (!p) return null;
-                    const m = resolve(id);
-                    return (
-                      <p key={id} className="text-sm leading-relaxed">
-                        <span className="font-medium" style={{ color: m.color }}>
-                          {m.name}:
-                        </span>{" "}
-                        {p.interpretation}
-                      </p>
-                    );
-                  })
-                ) : (
-                  <StaticMeaning card={card} draw={d} />
-                )}
-              </div>
-            </article>
-          </Panel>
-        );
-      })}
-
-      {outputs.some((o) => o.view?.result?.output) && (
-        <Panel className="space-y-2 p-4">
-          <h3 className="text-sm font-semibold">Tổng quan từng thầy bói</h3>
-          {outputs.map(({ id, view }) => {
-            const m = resolve(id);
-            const out = view?.result?.output;
-            return (
-              <div key={id} className="text-sm">
-                <span className="font-medium" style={{ color: m.color }}>
-                  {m.name}
-                </span>
-                {out ? (
-                  <p className="leading-relaxed text-fg-soft">{out.overall}</p>
-                ) : (
-                  <p className="text-xs text-warn">{view?.reason ?? "Chưa có lời giải"} — xem nghĩa gốc của các lá ở trên.</p>
-                )}
-                {view?.result?.warnings.map((w) => (
-                  <p key={w} className="text-[11px] text-fg-subtle">
-                    ⚑ {w}
-                  </p>
-                ))}
-              </div>
-            );
-          })}
-        </Panel>
-      )}
-      {reading.draws.length === 0 && <p className="px-1 text-sm text-fg-subtle">Chọn lá từ quạt bài bên dưới để bắt đầu.</p>}
+      {landed.length > 0 && <h2 className="px-1 text-xs font-medium tracking-wide text-fg-muted uppercase">Nghĩa gốc các lá</h2>}
+      {landed.map((d) => (
+        <CardReference key={d.position} card={byId.get(d.card_id)} draw={d} hint={spread.positions[d.position]?.meaning_hint} />
+      ))}
+      {reading.draws.length === 0 && <p className="px-1 text-sm text-fg-subtle">Bốc lá từ quạt bài để đặt lên bàn trải.</p>}
     </div>
   );
 }
